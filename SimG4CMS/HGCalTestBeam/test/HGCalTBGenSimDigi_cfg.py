@@ -13,6 +13,7 @@ process.load('Configuration.EventContent.EventContent_cff')
 process.load('SimG4CMS.HGCalTestBeam.HGCalTB160XML_cfi')
 process.load('Geometry.HGCalCommonData.hgcalNumberingInitialization_cfi')
 process.load('Geometry.HGCalCommonData.hgcalParametersInitialization_cfi')
+process.load('Geometry.HcalTestBeamData.hcalTB06Parameters_cff')
 process.load('Geometry.CaloEventSetup.HGCalTopology_cfi')
 process.load('Geometry.HGCalGeometry.HGCalGeometryESProducer_cfi')
 process.load('Configuration.StandardSequences.MagneticField_0T_cff')
@@ -92,7 +93,7 @@ process.VtxSmeared.MeanY  = 0.0
 process.VtxSmeared.SigmaY = 0.65
 process.VtxSmeared.MeanZ  = -3500.0
 process.VtxSmeared.SigmaZ = 0
-process.HGCalTBAnalyzer.DoRecHits = False
+process.HGCalTBAnalyzer.doRecHits = False
 
 # Path and EndPath definitions
 process.generation_step = cms.Path(process.pgen)

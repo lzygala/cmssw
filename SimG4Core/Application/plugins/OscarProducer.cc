@@ -4,7 +4,7 @@
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
-#include "SimG4Core/Application/interface/OscarProducer.h"
+#include "OscarProducer.h"
 #include "SimG4Core/Notification/interface/G4SimEvent.h"
 
 #include "SimDataFormats/Track/interface/SimTrackContainer.h"
@@ -26,6 +26,7 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 #include <iostream>
+#include <memory>
 
 namespace edm {
   class StreamID;
@@ -68,7 +69,7 @@ OscarProducer::OscarProducer(edm::ParameterSet const& p) {
   usesResource(edm::SharedResourceNames::kCLHEPRandomEngine);
 
   consumes<edm::HepMCProduct>(p.getParameter<edm::InputTag>("HepMCProductLabel"));
-  m_runManager.reset(new RunManager(p, consumesCollector()));
+  m_runManager = std::make_unique<RunManager>(p, consumesCollector());
 
   produces<edm::SimTrackContainer>().setBranchAlias("SimTracks");
   produces<edm::SimVertexContainer>().setBranchAlias("SimVertices");
@@ -124,16 +125,17 @@ OscarProducer::OscarProducer(edm::ParameterSet const& p) {
   produces<edm::PCaloHitContainer>("FibreHits");
   produces<edm::PCaloHitContainer>("WedgeHits");
   produces<edm::PCaloHitContainer>("HFNoseHits");
+  produces<edm::PCaloHitContainer>("TotemHitsT2Scint");
 
   //register any products
   m_producers = m_runManager->producers();
 
   for (Producers::iterator itProd = m_producers.begin(); itProd != m_producers.end(); ++itProd) {
-    (*itProd)->registerProducts(*this);
+    (*itProd)->registerProducts(producesCollector());
   }
 
   //UIsession manager for message handling
-  m_UIsession.reset(new CustomUIsession());
+  m_UIsession = std::make_unique<CustomUIsession>();
 }
 
 OscarProducer::~OscarProducer() {}

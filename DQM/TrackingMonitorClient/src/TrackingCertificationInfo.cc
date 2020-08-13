@@ -3,7 +3,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "DQM/SiStripCommon/interface/SiStripFolderOrganizer.h"
 #include "DQM/TrackingMonitorClient/interface/TrackingUtility.h"
 #include "DQM/TrackingMonitorClient/interface/TrackingCertificationInfo.h"
@@ -56,7 +55,7 @@ TrackingCertificationInfo::TrackingCertificationInfo(edm::ParameterSet const& pS
 
   std::vector<edm::ParameterSet> TrackingGlobalQualityMEs =
       pSet_.getParameter<std::vector<edm::ParameterSet> >("TrackingGlobalQualityPSets");
-  for (auto meQTset : TrackingGlobalQualityMEs) {
+  for (const auto& meQTset : TrackingGlobalQualityMEs) {
     std::string QTname = meQTset.getParameter<std::string>("QT");
     tracking_mes.TrackingFlag = nullptr;
 
@@ -70,7 +69,7 @@ TrackingCertificationInfo::TrackingCertificationInfo(edm::ParameterSet const& pS
   // load variables for LS certification
   std::vector<edm::ParameterSet> TrackingLSQualityMEs =
       pSet_.getParameter<std::vector<edm::ParameterSet> >("TrackingLSQualityMEs");
-  for (auto meQTset : TrackingLSQualityMEs) {
+  for (const auto& meQTset : TrackingLSQualityMEs) {
     std::string QTname = meQTset.getParameter<std::string>("QT");
     tracking_ls_mes.TrackingFlag = nullptr;
 
@@ -162,7 +161,7 @@ void TrackingCertificationInfo::bookTrackingCertificationMEs(DQMStore::IBooker& 
     TrackingCertificationSummaryMap->setAxisTitle("Track Quality Type", 1);
     TrackingCertificationSummaryMap->setAxisTitle("QTest Flag", 2);
     size_t ibin = 0;
-    for (auto meQTset : TrackingMEsMap) {
+    for (const auto& meQTset : TrackingMEsMap) {
       TrackingCertificationSummaryMap->setBinLabel(ibin + 1, meQTset.first);
       ibin++;
     }
@@ -323,7 +322,7 @@ void TrackingCertificationInfo::fillTrackingCertificationMEs(DQMStore::IBooker& 
       continue;
     if (verbose_)
       std::cout << "[TrackingCertificationInfo::fillTrackingCertificationMEs] me: " << me->getName() << std::endl;
-    if (me->kind() == MonitorElement::DQM_KIND_REAL) {
+    if (me->kind() == MonitorElement::Kind::REAL) {
       const std::string& name = me->getName();
       float val = me->getFloatValue();
 
@@ -458,7 +457,7 @@ void TrackingCertificationInfo::fillTrackingCertificationMEsAtLumi(DQMStore::IBo
       continue;
     if (verbose_)
       std::cout << "[TrackingCertificationInfo::fillTrackingCertificationMEsAtLumi] me: " << me->getName() << std::endl;
-    if (me->kind() == MonitorElement::DQM_KIND_REAL) {
+    if (me->kind() == MonitorElement::Kind::REAL) {
       const std::string& name = me->getName();
       float val = me->getFloatValue();
       if (verbose_)
@@ -493,7 +492,7 @@ void TrackingCertificationInfo::fillTrackingCertificationMEsAtLumi(DQMStore::IBo
   float global_dqm_flag = 1.0;
   std::string full_path = tracking_dir + "/EventInfo/reportSummary";
   MonitorElement* me_dqm = igetter_.get(full_path);
-  if (me_dqm && me_dqm->kind() == MonitorElement::DQM_KIND_REAL)
+  if (me_dqm && me_dqm->kind() == MonitorElement::Kind::REAL)
     global_dqm_flag = me_dqm->getFloatValue();
   if (verbose_)
     std::cout << "[TrackingCertificationInfo::fillTrackingCertificationMEsAtLumi] global_dqm_flag: " << global_dqm_flag

@@ -10,6 +10,7 @@
 #include "RelationalAccess/ISessionProxy.h"
 //
 #include <memory>
+#include <mutex>
 // temporarely
 
 namespace coral {
@@ -32,7 +33,7 @@ namespace cond {
       bool gtDbExists = false;
       bool gtDbOpen = false;
       bool runInfoDbExists = false;
-      bool runInfoDbOpen = true;
+      bool runInfoDbOpen = false;
       size_t clients = 0;
     };
 
@@ -70,6 +71,10 @@ namespace cond {
       std::unique_ptr<IIOVSchema> iovSchemaHandle;
       std::unique_ptr<IGTSchema> gtSchemaHandle;
       std::unique_ptr<IRunInfoSchema> runInfoSchemaHandle;
+
+    private:
+      std::recursive_mutex transactionMutex;
+      std::unique_lock<std::recursive_mutex> transactionLock;
     };
 
   }  // namespace persistency

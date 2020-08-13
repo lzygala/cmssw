@@ -45,12 +45,14 @@ namespace {
       Base::setSingleIov(true);
     }
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      auto iov = iovs.front();
-      std::shared_ptr<RunInfo> payload = Base::fetchPayload(std::get<1>(iov));
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      for (auto const& iov : tag.iovs) {
+        std::shared_ptr<RunInfo> payload = Base::fetchPayload(std::get<1>(iov));
 
-      if (payload.get()) {
-        payload->printAllValues();
+        if (payload.get()) {
+          payload->printAllValues();
+        }
       }
       return true;
     }
@@ -81,8 +83,8 @@ namespace {
       canvas.Modified();
       canvas.SetGrid();
 
-      auto h2_RunInfoParameters = std::unique_ptr<TH2F>(new TH2F("Parameters", "", 1, 0.0, 1.0, 11, 0, 11.));
-      auto h2_RunInfoState = std::unique_ptr<TH2F>(new TH2F("State", "", 1, 0.0, 1.0, 11, 0, 11.));
+      auto h2_RunInfoParameters = std::make_unique<TH2F>("Parameters", "", 1, 0.0, 1.0, 11, 0, 11.);
+      auto h2_RunInfoState = std::make_unique<TH2F>("State", "", 1, 0.0, 1.0, 11, 0, 11.);
       h2_RunInfoParameters->SetStats(false);
       h2_RunInfoState->SetStats(false);
 

@@ -15,7 +15,6 @@ V00-03-25
 */
 
 #include "DQM/BeamMonitor/plugins/BeamMonitor.h"
-#include "DQMServices/Core/interface/QReport.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "DataFormats/TrackCandidate/interface/TrackCandidate.h"
@@ -29,6 +28,8 @@ V00-03-25
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Common/interface/TriggerNames.h"
 #include "DataFormats/HLTReco/interface/TriggerEvent.h"
+#include "CondFormats/BeamSpotObjects/interface/BeamSpotOnlineObjects.h"
+#include "CondCore/DBOutputService/interface/OnlineDBOutputService.h"
 #include <numeric>
 #include <cmath>
 #include <memory>
@@ -117,6 +118,7 @@ BeamMonitor::BeamMonitor(const ParameterSet& ps)
       firstAverageFit_(0),
       countGapLumi_(0) {
   monitorName_ = ps.getUntrackedParameter<string>("monitorName", "YourSubsystemName");
+  recordName_ = ps.getUntrackedParameter<string>("recordName");
   bsSrc_ = consumes<reco::BeamSpot>(ps.getUntrackedParameter<InputTag>("beamSpot"));
   tracksLabel_ = consumes<reco::TrackCollection>(
       ps.getParameter<ParameterSet>("BeamFitter").getUntrackedParameter<InputTag>("TrackCollection"));
@@ -243,7 +245,7 @@ void BeamMonitor::bookHistograms(DQMStore::IBooker& iBooker, edm::Run const& iRu
 
   h_vx_vy = iBooker.book2D(
       "trk_vx_vy", "Vertex (PCA) position of selected tracks", vxBin_, vxMin_, vxMax_, vxBin_, vxMin_, vxMax_);
-  h_vx_vy->getTH2F()->SetOption("COLZ");
+  h_vx_vy->setOption("COLZ");
   //   h_vx_vy->getTH1()->SetCanExtend(TH1::kAllAxes);
   h_vx_vy->setAxisTitle("x coordinate of input track at PCA (cm)", 1);
   h_vx_vy->setAxisTitle("y coordinate of input track at PCA (cm)", 2);
@@ -1023,7 +1025,6 @@ void BeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, int&
         auto tmphisto = h_PVy[0]->getTH1F();
         h_PVy[1]->getTH1()->SetBins(
             tmphisto->GetNbinsX(), tmphisto->GetXaxis()->GetXmin(), tmphisto->GetXaxis()->GetXmax());
-        h_PVy[1]->update();
         h_PVy[1]->Reset();
         h_PVy[1]->getTH1()->Add(tmphisto);
         h_PVy[1]->getTH1()->Fit(fgaus.get(), "QLM");
@@ -1054,7 +1055,6 @@ void BeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, int&
         auto tmphisto = h_PVz[0]->getTH1F();
         h_PVz[1]->getTH1()->SetBins(
             tmphisto->GetNbinsX(), tmphisto->GetXaxis()->GetXmin(), tmphisto->GetXaxis()->GetXmax());
-        h_PVz[1]->update();
         h_PVz[1]->Reset();
         h_PVz[1]->getTH1()->Add(tmphisto);
         h_PVz[1]->getTH1()->Fit(fgaus.get(), "QLM");
@@ -1327,6 +1327,43 @@ void BeamMonitor::FitAndFill(const LuminosityBlock& lumiSeg, int& lastlumi, int&
       summaryContent_[2] += 1.;
       //     }
 
+      // Create the BeamSpotOnlineObjects object
+      BeamSpotOnlineObjects* BSOnline = new BeamSpotOnlineObjects();
+      BSOnline->SetLastAnalyzedLumi(fitLS.second);
+      BSOnline->SetLastAnalyzedRun(theBeamFitter->getRunNumber());
+      BSOnline->SetLastAnalyzedFill(0);  // To be updated with correct LHC Fill number
+      BSOnline->SetPosition(bs.x0(), bs.y0(), bs.z0());
+      BSOnline->SetSigmaZ(bs.sigmaZ());
+      BSOnline->SetBeamWidthX(bs.BeamWidthX());
+      BSOnline->SetBeamWidthY(bs.BeamWidthY());
+      BSOnline->SetBeamWidthXError(bs.BeamWidthXError());
+      BSOnline->SetBeamWidthYError(bs.BeamWidthYError());
+      BSOnline->Setdxdz(bs.dxdz());
+      BSOnline->Setdydz(bs.dydz());
+      BSOnline->SetType(bs.type());
+      BSOnline->SetEmittanceX(bs.emittanceX());
+      BSOnline->SetEmittanceY(bs.emittanceY());
+      BSOnline->SetBetaStar(bs.betaStar());
+      for (int i = 0; i < 7; ++i) {
+        for (int j = 0; j < 7; ++j) {
+          BSOnline->SetCovariance(i, j, bs.covariance(i, j));
+        }
+      }
+      BSOnline->SetNumTracks(theBeamFitter->getNTracks());
+      BSOnline->SetNumPVs(theBeamFitter->getNPVs());
+
+      edm::LogInfo("BeamMonitor") << "FitAndFill::[PayloadCreation] BeamSpotOnline object created: \n" << std::endl;
+      edm::LogInfo("BeamMonitor") << *BSOnline << std::endl;
+
+      // Create the payload for BeamSpotOnlineObjects object
+      edm::Service<cond::service::OnlineDBOutputService> onlineDbService;
+      if (onlineDbService.isAvailable()) {
+        edm::LogInfo("BeamMonitor") << "FitAndFill::[PayloadCreation] onlineDbService available \n" << std::endl;
+        BSOnline->SetCreationTime(onlineDbService->currentTime());
+        onlineDbService->writeForNextLumisection(BSOnline, recordName_);
+      }
+      edm::LogInfo("BeamMonitor") << "FitAndFill::[PayloadCreation] BeamSpotOnline payload created \n" << std::endl;
+
     }       //if (theBeamFitter->runPVandTrkFitter())
     else {  // beam fit fails
       reco::BeamSpot bs = theBeamFitter->getBeamSpot();
@@ -1435,9 +1472,9 @@ void BeamMonitor::RestartFitting() {
 }
 
 //-------------------------------------------------------
-void BeamMonitor::endRun(const Run& r, const EventSetup& context) {
+void BeamMonitor::dqmEndRun(const Run& r, const EventSetup& context) {
   if (debug_)
-    edm::LogInfo("BeamMonitor") << "endRun:: Clearing all the Maps " << endl;
+    edm::LogInfo("BeamMonitor") << "dqmEndRun:: Clearing all the Maps " << endl;
   //Clear all the Maps here
   mapPVx.clear();
   mapPVy.clear();

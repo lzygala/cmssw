@@ -10,6 +10,7 @@ process.load('CondCore.CondDB.CondDB_cfi')
 process.load('Configuration.Geometry.GeometryExtended2019_cff')
 process.load('Geometry.MuonNumbering.muonNumberingInitialization_cfi')
 process.load('Geometry.CaloEventSetup.CaloGeometryDBWriter_cfi')
+process.load('CondTools.Geometry.HcalParametersWriter_cff')
 
 process.source = cms.Source("EmptyIOVSource",
                             lastValue = cms.uint64(1),
@@ -31,12 +32,11 @@ process.TrackerGeometricDetExtraESModule = cms.ESProducer( "TrackerGeometricDetE
                                                            fromDDD = cms.bool( True ),
                                                            )
 
-process.TrackerGeometryWriter = cms.EDAnalyzer("PGeometricDetBuilder")
-process.TrackerGeometryExtraWriter = cms.EDAnalyzer("PGeometricDetExtraBuilder")
-process.TrackerParametersWriter = cms.EDAnalyzer("PTrackerParametersDBBuilder")
+process.TrackerGeometryWriter = cms.EDAnalyzer("PGeometricDetBuilder",fromDD4hep=cms.bool(False))
+process.TrackerGeometryExtraWriter = cms.EDAnalyzer("PGeometricDetExtraBuilder",fromDD4hep=cms.bool(False))
+process.TrackerParametersWriter = cms.EDAnalyzer("PTrackerParametersDBBuilder",fromDD4hep=cms.bool(False))
 
 process.CaloGeometryWriter = cms.EDAnalyzer("PCaloGeometryBuilder")
-process.HcalParametersWriter = cms.EDAnalyzer("HcalParametersDBBuilder")
 
 process.CSCGeometryWriter = cms.EDAnalyzer("CSCRecoIdealDBLoader")
 

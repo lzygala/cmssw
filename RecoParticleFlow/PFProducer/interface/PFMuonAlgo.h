@@ -5,6 +5,7 @@
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/MuonReco/interface/MuonFwd.h"
@@ -15,7 +16,9 @@ class PFMuonAlgo {
 
 public:
   /// constructor
-  PFMuonAlgo(edm::ParameterSet const&);
+  PFMuonAlgo(edm::ParameterSet const&, bool postMuonCleaning);
+
+  static void fillPSetDescription(edm::ParameterSetDescription& iDesc);
 
   ////STATIC MUON ID METHODS
   static bool isMuon(const reco::PFBlockElement& elt);
@@ -37,7 +40,7 @@ public:
   static void printMuonProperties(const reco::MuonRef& muonRef);
 
   ////POST CLEANING AND MOMEMNTUM ASSIGNMENT
-  bool hasValidTrack(const reco::MuonRef& muonRef, bool loose = false);
+  static bool hasValidTrack(const reco::MuonRef& muonRef, bool loose, double maxDPtOPt);
 
   //Make a PF Muon : Basic method
   bool reconstructMuon(reco::PFCandidate&, const reco::MuonRef&, bool allowLoose = false);
@@ -73,16 +76,13 @@ public:
     return std::move(pfAddedMuonCandidates_);
   }
 
+  static std::vector<reco::Muon::MuonTrackTypePair> muonTracks(const reco::MuonRef& muon,
+                                                               double maxDPtOPt = 1e+9,
+                                                               bool includeSA = false);
+
 private:
-  //Gives the track with the smallest Dpt/Pt
+  //Give the track with the smallest Dpt/Pt
   MuonTrackTypePair getTrackWithSmallestError(const std::vector<MuonTrackTypePair>&);
-
-  std::vector<reco::Muon::MuonTrackTypePair> muonTracks(const reco::MuonRef& muon,
-                                                        bool includeSA = false,
-                                                        double dpt = 1e+9);
-
-  //Gets the good tracks
-  std::vector<reco::Muon::MuonTrackTypePair> goodMuonTracks(const reco::MuonRef& muon, bool includeSA = false);
 
   //Estimate MET and SUmET for post cleaning
   void estimateEventQuantities(const reco::PFCandidateCollection*);
@@ -118,14 +118,14 @@ private:
   const reco::VertexCollection* vertices_;
 
   //Configurables
+  // for PFMuonAlgo::goodMuonTracks/muonTracks
   const double maxDPtOPt_;
-  const int minTrackerHits_;
-  const int minPixelHits_;
+  // for PFMuonAlgo::reconstructMuon
   const reco::TrackBase::TrackQuality trackQuality_;
   const double errorCompScale_;
-  const double eventFractionCleaning_;
-  const double dzPV_;
+  // for postCleaning (postClean/addMissingMuons)
   const bool postCleaning_;
+  const double eventFractionCleaning_;
   const double minPostCleaningPt_;
   const double eventFactorCosmics_;
   const double metSigForCleaning_;

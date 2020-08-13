@@ -1,7 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
 from RecoTauTag.Configuration.RecoPFTauTag_cff import *
-from RecoTauTag.RecoTau.PFTauSelector_cfi  import pfTauSelector
+from RecoTauTag.RecoTau.pfTauSelector_cfi  import pfTauSelector
 import RecoTauTag.RecoTau.RecoTauCleanerPlugins as cleaners
 import RecoJets.JetProducers.ak4PFJets_cfi as jetConfig
 
@@ -39,11 +39,14 @@ pfTauTagInfoProducer.PFJetTracksAssociatorProducer = 'pfJetTracksAssociatorAtVer
 
 # Clone tau producer
 pfTausProducer = hpsPFTauProducer.clone()
-pfTausCombiner = combinatoricRecoTaus.clone()
-pfTausCombiner.jetSrc= cms.InputTag("ak4PFJets")
-pfTausCombiner.piZeroSrc= "pfJetsLegacyHPSPiZeros"
-pfTausCombiner.chargedHadronSrc='pfTauPFJetsRecoTauChargedHadrons'
-pfTausCombiner.modifiers[3].pfTauTagInfoSrc=cms.InputTag("pfTauTagInfoProducer")
+pfTausCombiner = combinatoricRecoTaus.clone(
+    jetSrc = "ak4PFJets",
+    piZeroSrc = "pfJetsLegacyHPSPiZeros",
+    chargedHadronSrc = "pfTauPFJetsRecoTauChargedHadrons"
+)
+for mod in pfTausCombiner.modifiers:
+    if mod.name == "TTIworkaround": mod.pfTauTagInfoSrc = "pfTauTagInfoProducer"
+
 pfTausSelectionDiscriminator = hpsSelectionDiscriminator.clone()
 pfTausSelectionDiscriminator.PFTauProducer = cms.InputTag("pfTausCombiner")
 pfTausProducerSansRefs = hpsPFTauProducerSansRefs.clone()
@@ -82,7 +85,7 @@ pfTausProducer.src = cms.InputTag("pfTausProducerSansRefs")
 pfTausDiscriminationByDecayModeFinding = hpsPFTauDiscriminationByDecayModeFinding.clone()
 pfTausDiscriminationByDecayModeFinding.PFTauProducer="pfTausProducer"
 
-pfTausDiscriminationByIsolation= hpsPFTauDiscriminationByLooseCombinedIsolationDBSumPtCorr3Hits.clone()
+pfTausDiscriminationByIsolation= hpsPFTauBasicDiscriminators.clone()
 pfTausDiscriminationByIsolation.PFTauProducer="pfTausProducer"
 
 pfTausrequireDecayMode = cms.PSet(
@@ -125,6 +128,7 @@ pfTauTagInfoProducer.PFJetTracksAssociatorProducer = 'pfJetTracksAssociatorAtVer
 
 pfTausPreSequence = cms.Sequence(
     pfJetTracksAssociatorAtVertex +
+    recoTauAK4PFJets08Region +
     pfTauPileUpVertices +
     pfTauTagInfoProducer
 )

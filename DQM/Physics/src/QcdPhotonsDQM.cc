@@ -11,7 +11,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/Common/interface/TriggerNames.h"
 
@@ -223,7 +222,7 @@ void QcdPhotonsDQM::bookHistograms(DQMStore::IBooker& ibooker, edm::Run const&, 
 
   auto setSumw2 = [](MonitorElement* me) {
     if (me->getTH1F()->GetSumw2N() == 0) {
-      me->getTH1F()->Sumw2();
+      me->enableSumw2();
     }
   };
 

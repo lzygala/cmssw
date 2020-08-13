@@ -16,8 +16,6 @@
 //DQM services
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
-#include "DQMServices/Core/src/DQMError.h"
 
 //Regexp handling
 #include "classlib/utils/RegexpMatch.h"
@@ -31,10 +29,12 @@ using namespace std;
 
 class DQMHistNormalizer : public edm::EDAnalyzer {
 public:
+  typedef dqm::legacy::DQMStore DQMStore;
+  typedef dqm::legacy::MonitorElement MonitorElement;
+
   explicit DQMHistNormalizer(const edm::ParameterSet&);
   ~DQMHistNormalizer() override;
   void analyze(const edm::Event&, const edm::EventSetup&) override;
-  void endJob() override {}
   void endRun(const edm::Run& r, const edm::EventSetup& c) override;
 
 private:
@@ -63,7 +63,8 @@ lat::Regexp* DQMHistNormalizer::buildRegex(const string& expr) {
     rx = new lat::Regexp(expr, 0, lat::Regexp::Wildcard);
     rx->study();
   } catch (lat::Error& e) {
-    raiseDQMError("DQMStore", "Invalid regular expression '%s': %s", expr.c_str(), e.explain().c_str());
+    throw cms::Exception("DQMHistNormalizer")
+        << "Invalid regular expression '" << expr.c_str() << "':" << e.explain().c_str();
   }
   return rx;
 }

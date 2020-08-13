@@ -24,7 +24,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "DataFormats/Common/interface/TriggerResults.h"
 #include "DataFormats/HLTReco/interface/TriggerEvent.h"
@@ -95,9 +94,6 @@ public:
 
   /// Initialize run-based parameters
   void dqmBeginRun(const edm::Run&, const edm::EventSetup&) override;
-
-  /// Finish up a run
-  void endRun(const edm::Run&, const edm::EventSetup&) override;
 
 private:
   // ----------member data ---------------------------

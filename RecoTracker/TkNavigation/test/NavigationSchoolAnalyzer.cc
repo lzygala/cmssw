@@ -20,7 +20,6 @@
 #include <memory>
 
 // user include files
-#include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
 
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -42,7 +41,6 @@
 #include "RecoTracker/Record/interface/NavigationSchoolRecord.h"
 
 #include "TrackingTools/DetLayers/interface/DetLayer.h"
-// #include "TrackingTools/DetLayers/interface/NavigationSetter.h"
 
 // class definition
 class NavigationSchoolAnalyzer : public edm::EDAnalyzer {
@@ -84,6 +82,7 @@ void NavigationSchoolAnalyzer::print(std::ostream& os, const DetLayer* dl) {
         break;
       case GeomDetEnumerators::RPCEndcap:
         side = (unsigned int)((RPCDetId(tag->geographicalId().rawId()).region() / 2. + 1) * 2.);
+        [[fallthrough]];
       case GeomDetEnumerators::RPCBarrel:
         LorW = RPCDetId(tag->geographicalId().rawId()).station();
         break;

@@ -9,10 +9,12 @@ class _ConfigureComponent(object):
         return False
 
 class PrintOptions(object):
-    def __init__(self):
-        self.indent_= 0
-        self.deltaIndent_ = 4
-        self.isCfg = True
+    def __init__(self, indent = 0, deltaIndent = 4, process = True, targetDirectory = None, useSubdirectories = False):
+        self.indent_= indent
+        self.deltaIndent_ = deltaIndent
+        self.isCfg = process
+        self.targetDirectory = targetDirectory
+        self.useSubdirectories = useSubdirectories
     def indentation(self):
         return ' '*self.indent_
     def indent(self):
@@ -82,7 +84,9 @@ class _ParameterTypeBase(object):
         return self._isFrozen 
     def setIsFrozen(self):
         self._isFrozen = True
-
+    def isCompatibleCMSType(self,aType):
+        return isinstance(self,aType)
+ 
 class _SimpleParameterTypeBase(_ParameterTypeBase):
     """base class for parameter classes which only hold a single value"""
     def __init__(self,value):
@@ -452,6 +456,9 @@ class _TypedParameterizable(_Parameterizable):
                             params[name] = getattr(default,name)
                         return params
         return None
+
+    def directDependencies(self):
+        return []
     
     def dumpConfig(self, options=PrintOptions()):
         config = self.__type +' { \n'
@@ -534,7 +541,10 @@ class _Labelable(object):
     def dumpSequenceConfig(self):
         return str(self.__label)
     def dumpSequencePython(self, options=PrintOptions()):
-        return 'process.'+str(self.__label)
+        if options.isCfg:
+            return 'process.'+str(self.__label)
+        else:
+            return str(self.__label)
     def _findDependencies(self,knownDeps,presentDeps):
         #print 'in labelled'
         myDeps=knownDeps.get(self.label_(),None)
@@ -579,14 +589,21 @@ class _ValidatingListBase(list):
             if not self._itemIsValid(item):
                 return False
         return True
+    def _itemFromArgument(self, x):
+        return x
+    def _convertArguments(self, seq):
+        if isinstance(seq, str):
+            yield seq
+        for x in seq:
+            yield self._itemFromArgument(x)
     def append(self,x):
         if not self._itemIsValid(x):
             raise TypeError("wrong type being appended to container "+self._labelIfAny())
-        super(_ValidatingListBase,self).append(x)
+        super(_ValidatingListBase,self).append(self._itemFromArgument(x))
     def extend(self,x):
         if not self._isValid(x):
             raise TypeError("wrong type being extended to container "+self._labelIfAny())
-        super(_ValidatingListBase,self).extend(x)
+        super(_ValidatingListBase,self).extend(self._convertArguments(x))
     def __add__(self,rhs):
         if not self._isValid(rhs):
             raise TypeError("wrong type being added to container "+self._labelIfAny())
@@ -597,7 +614,7 @@ class _ValidatingListBase(list):
     def insert(self,i,x):
         if not self._itemIsValid(x):
             raise TypeError("wrong type being inserted to container "+self._labelIfAny())
-        super(_ValidatingListBase,self).insert(i,x)
+        super(_ValidatingListBase,self).insert(i,self._itemFromArgument(x))
     def _labelIfAny(self):
         result = type(self).__name__
         if hasattr(self, '__label'):
@@ -665,6 +682,8 @@ class _ValidatingParameterListBase(_ValidatingListBase,_ParameterTypeBase):
             result +=' ) '
         result += ')'
         return result            
+    def directDependencies(self):
+        return []
     @staticmethod
     def _itemsFromStrings(strings,converter):
         return (converter(x).value() for x in strings)

@@ -266,6 +266,8 @@ namespace edm {
     }
   }
 
+  bool InputSource::readProcessBlock() { return false; }
+
   void InputSource::readRun_(RunPrincipal& runPrincipal) {
     // Note: For the moment, we do not support saving and restoring the state of the
     // random number generator if random numbers are generated during processing of runs
@@ -274,7 +276,8 @@ namespace edm {
   }
 
   void InputSource::readLuminosityBlock_(LuminosityBlockPrincipal& lumiPrincipal) {
-    lumiPrincipal.fillLuminosityBlockPrincipal(processHistoryRegistry());
+    auto history = processHistoryRegistry().getMapped(lumiPrincipal.aux().processHistoryID());
+    lumiPrincipal.fillLuminosityBlockPrincipal(history);
   }
 
   void InputSource::readEvent(EventPrincipal& ep, StreamContext& streamContext) {

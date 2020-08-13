@@ -11,7 +11,6 @@
 #include "DQM/SiPixelMonitorClient/interface/SiPixelUtility.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
@@ -27,7 +26,7 @@
 
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
 
@@ -118,7 +117,7 @@ int SiPixelDataQuality::getDetId(MonitorElement *mE) {
   int detId = 0;
 
   if (mEName.find("_3") != string::npos) {
-    string detIdString = mEName.substr((mEName.find_last_of("_")) + 1, 9);
+    string detIdString = mEName.substr((mEName.find_last_of('_')) + 1, 9);
     std::istringstream isst;
     isst.str(detIdString);
     isst >> detId;
@@ -306,7 +305,7 @@ void SiPixelDataQuality::computeGlobalQualityFlag(
     return;
 
   string currDir = iBooker.pwd();
-  string dname = currDir.substr(currDir.find_last_of("/") + 1);
+  string dname = currDir.substr(currDir.find_last_of('/') + 1);
 
   if ((!Tier0Flag && dname.find("Module_") != string::npos) ||
       (Tier0Flag && (dname.find("Ladder_") != string::npos || dname.find("Blade_") != string::npos))) {
@@ -859,7 +858,7 @@ void SiPixelDataQuality::fillGlobalQualityPlot(DQMStore::IBooker &iBooker,
       }
       for (int j = 0; j < 4; ++j) {
         static const char buf[] = "Pixel/Barrel/NClustertoChargeRatio_NormMod%i";
-        char modplot[sizeof(buf) + 2];
+        char modplot[sizeof(buf) + 16];
         sprintf(modplot, buf, j + 1);
         MonitorElement *meFinal = iGetter.get(modplot);
         if (!meFinal)
@@ -897,7 +896,7 @@ void SiPixelDataQuality::fillGlobalQualityPlot(DQMStore::IBooker &iBooker,
     string currDir = iBooker.pwd();
     if (currDir.find("Reference") != string::npos || currDir.find("Additional") != string::npos)
       return;
-    string dname = currDir.substr(currDir.find_last_of("/") + 1);
+    string dname = currDir.substr(currDir.find_last_of('/') + 1);
     if (dname.find("Module_") != string::npos && currDir.find("Reference") == string::npos) {
       vector<string> meVec = iGetter.getMEs();
       int detId = -1;

@@ -38,6 +38,8 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 
+#include <memory>
+
 #include <unordered_map>
 
 class HGCalTrackCollectionProducer : public edm::stream::EDProducer<> {
@@ -52,7 +54,8 @@ private:
 
   // variables needed for copied goodPtResolution function
   // need to go back and figure out sensible values
-  bool debug_;
+
+  const reco::TrackBase::TrackQuality trackQuality_;
   const std::vector<double> DPtovPtCut_;
   const std::vector<unsigned> NHitCut_;
   const bool useIterTracking_;
@@ -73,7 +76,9 @@ private:
 
 HGCalTrackCollectionProducer::HGCalTrackCollectionProducer(const edm::ParameterSet& iConfig)
     : src_(consumes<edm::View<reco::PFRecTrack> >(iConfig.getParameter<edm::InputTag>("src"))),
-      debug_(iConfig.getParameter<bool>("debug")),
+      trackQuality_((iConfig.existsAs<std::string>("trackQuality"))
+                        ? reco::TrackBase::qualityByName(iConfig.getParameter<std::string>("trackQuality"))
+                        : reco::TrackBase::highPurity),
       DPtovPtCut_(iConfig.getParameter<std::vector<double> >("DPtOverPtCuts_byTrackAlgo")),
       NHitCut_(iConfig.getParameter<std::vector<unsigned> >("NHitCuts_byTrackAlgo")),
       useIterTracking_(iConfig.getParameter<bool>("useIterativeTracking")) {
@@ -100,7 +105,7 @@ void HGCalTrackCollectionProducer::beginLuminosityBlock(const edm::LuminosityBlo
   }
 
   // make propagator
-  mat_prop_.reset(new PropagatorWithMaterial(alongMomentum, m_pion, bField_.product()));
+  mat_prop_ = std::make_unique<PropagatorWithMaterial>(alongMomentum, m_pion, bField_.product());
   // setup HGC layers for track propagation
   Surface::RotationType rot;  //unit rotation matrix
   for (unsigned i = 0; i < hgcGeometries_.size(); ++i) {
@@ -135,7 +140,7 @@ void HGCalTrackCollectionProducer::produce(edm::Event& evt, const edm::EventSetu
   for (unsigned int i = 0; i < tracks.size(); i++) {
     const auto track = tracks.ptrAt(i);
     bool isGood =
-        PFTrackAlgoTools::goodPtResolution(track->trackRef(), DPtovPtCut_, NHitCut_, useIterTracking_, debug_);
+        PFTrackAlgoTools::goodPtResolution(track->trackRef(), DPtovPtCut_, NHitCut_, useIterTracking_, trackQuality_);
     LogDebug("HGCalTrackCollectionProducer") << "HGCalTrackCollectionProducer Track number " << i
                                              << " has a goodPtResolution result of " << isGood << std::endl;
     if (!isGood)

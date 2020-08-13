@@ -12,32 +12,9 @@ public:
   void clusterizeDetUnit(const edm::DetSet<SiStripDigi>&, output_t::TSFastFiller&) const override;
   void clusterizeDetUnit(const edmNew::DetSet<SiStripDigi>&, output_t::TSFastFiller&) const override;
 
-  Det stripByStripBegin(uint32_t id) const override;
-
   // LazyGetter interface
   void stripByStripAdd(State& state, uint16_t strip, uint8_t adc, std::vector<SiStripCluster>& out) const override;
   void stripByStripEnd(State& state, std::vector<SiStripCluster>& out) const override;
-
-  void addFed(State& state,
-              sistrip::FEDZSChannelUnpacker& unpacker,
-              uint16_t ipair,
-              std::vector<SiStripCluster>& out) const {
-    while (unpacker.hasData()) {
-      stripByStripAdd(state, unpacker.sampleNumber() + ipair * 256, unpacker.adc(), out);
-      unpacker++;
-    }
-  }
-  using StripClusterizerAlgorithm::addFed;
-  // detset interface
-  void addFed(State& state,
-              sistrip::FEDZSChannelUnpacker& unpacker,
-              uint16_t ipair,
-              output_t::TSFastFiller& out) const override {
-    while (unpacker.hasData()) {
-      stripByStripAdd(state, unpacker.sampleNumber() + ipair * 256, unpacker.adc(), out);
-      unpacker++;
-    }
-  }
 
   void stripByStripAdd(State& state, uint16_t strip, uint8_t adc, output_t::TSFastFiller& out) const override {
     if (candidateEnded(state, strip))
@@ -51,15 +28,8 @@ private:
   template <class T>
   void clusterizeDetUnit_(const T&, output_t::TSFastFiller&) const;
 
-  ThreeThresholdAlgorithm(float,
-                          float,
-                          float,
-                          unsigned,
-                          unsigned,
-                          unsigned,
-                          std::string qualityLabel,
-                          bool removeApvShots,
-                          float minGoodCharge);
+  ThreeThresholdAlgorithm(
+      const std::string&, float, float, float, unsigned, unsigned, unsigned, bool removeApvShots, float minGoodCharge);
 
   //constant methods with state information
   uint16_t firstStrip(State const& state) const { return state.lastStrip - state.ADCs.size() + 1; }

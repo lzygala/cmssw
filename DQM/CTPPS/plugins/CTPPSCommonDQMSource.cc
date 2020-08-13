@@ -14,9 +14,8 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "DataFormats/CTPPSDetId/interface/CTPPSDetId.h"
 #include "DataFormats/CTPPSReco/interface/CTPPSLocalTrackLite.h"
@@ -27,7 +26,7 @@
 
 //----------------------------------------------------------------------------------------------------
 
-class CTPPSCommonDQMSource : public one::DQMEDAnalyzer<edm::LuminosityBlockCache<std::vector<int>>> {
+class CTPPSCommonDQMSource : public DQMOneEDAnalyzer<edm::LuminosityBlockCache<std::vector<int>>> {
 public:
   CTPPSCommonDQMSource(const edm::ParameterSet &ps);
   ~CTPPSCommonDQMSource() override;
@@ -51,6 +50,8 @@ private:
   const edm::EDGetTokenT<CTPPSRecord> ctppsRecordToken;
   const edm::EDGetTokenT<std::vector<CTPPSLocalTrackLite>> tokenLocalTrackLite;
   const edm::EDGetTokenT<std::vector<reco::ForwardProton>> tokenRecoProtons;
+
+  bool makeProtonRecoPlots_;
 
   int currentLS;
   int endLS;
@@ -91,7 +92,7 @@ private:
 
     ArmPlots() {}
 
-    ArmPlots(DQMStore::IBooker &ibooker, int _id);
+    ArmPlots(DQMStore::IBooker &ibooker, int _id, bool makeProtonRecoPlots);
   };
 
   std::map<unsigned int, ArmPlots> armPlots;
@@ -196,7 +197,7 @@ void CTPPSCommonDQMSource::GlobalPlots::Init(DQMStore::IBooker &ibooker) {
 
 //----------------------------------------------------------------------------------------------------
 
-CTPPSCommonDQMSource::ArmPlots::ArmPlots(DQMStore::IBooker &ibooker, int _id) : id(_id) {
+CTPPSCommonDQMSource::ArmPlots::ArmPlots(DQMStore::IBooker &ibooker, int _id, bool makeProtonRecoPlots) : id(_id) {
   string name;
   CTPPSDetId(CTPPSDetId::sdTrackingStrip, id, 0).armName(name, CTPPSDetId::nShort);
 
@@ -248,11 +249,13 @@ CTPPSCommonDQMSource::ArmPlots::ArmPlots(DQMStore::IBooker &ibooker, int _id) : 
   xa->SetBinLabel(7, "220, far, bot");
   ya->SetBinLabel(7, "220, far, bot");
 
-  h_proton_xi = ibooker.book1D("proton xi", title + ";xi", 100, 0., 0.3);
-  h_proton_t = ibooker.book1D("proton t", title + ";|t|   GeV^{2}", 100, 0., 5.);
-  h_proton_time = ibooker.book1D("proton time", title + ";time   (ns)", 100, -25., 50.);
+  if (makeProtonRecoPlots) {
+    h_proton_xi = ibooker.book1D("proton xi", title + ";xi", 100, 0., 0.3);
+    h_proton_t = ibooker.book1D("proton t", title + ";|t|   GeV^{2}", 100, 0., 5.);
+    h_proton_time = ibooker.book1D("proton time", title + ";time   (ns)", 100, -1., 1.);
+  }
 
-  for (const unsigned int &rpDecId : {2, 3, 16, 23}) {
+  for (const unsigned int rpDecId : {2, 3, 16, 23}) {
     unsigned int st = rpDecId / 10, rp = rpDecId % 10, rpFullDecId = id * 100 + rpDecId;
     CTPPSDetId rpId(CTPPSDetId::sdTrackingStrip, id, st, rp);
     string stName, rpName;
@@ -280,7 +283,8 @@ CTPPSCommonDQMSource::CTPPSCommonDQMSource(const edm::ParameterSet &ps)
     : verbosity(ps.getUntrackedParameter<unsigned int>("verbosity", 0)),
       ctppsRecordToken(consumes<CTPPSRecord>(ps.getUntrackedParameter<edm::InputTag>("ctppsmetadata"))),
       tokenLocalTrackLite(consumes<vector<CTPPSLocalTrackLite>>(ps.getParameter<edm::InputTag>("tagLocalTrackLite"))),
-      tokenRecoProtons(consumes<std::vector<reco::ForwardProton>>(ps.getParameter<InputTag>("tagRecoProtons"))) {
+      tokenRecoProtons(consumes<std::vector<reco::ForwardProton>>(ps.getParameter<InputTag>("tagRecoProtons"))),
+      makeProtonRecoPlots_(ps.getParameter<bool>("makeProtonRecoPlots")) {
   currentLS = 0;
   endLS = 0;
   rpstate.clear();
@@ -298,7 +302,7 @@ void CTPPSCommonDQMSource::bookHistograms(DQMStore::IBooker &ibooker, edm::Run c
 
   // loop over arms
   for (unsigned int arm = 0; arm < 2; arm++) {
-    armPlots[arm] = ArmPlots(ibooker, arm);
+    armPlots[arm] = ArmPlots(ibooker, arm, makeProtonRecoPlots_);
   }
 }
 
@@ -307,7 +311,9 @@ void CTPPSCommonDQMSource::bookHistograms(DQMStore::IBooker &ibooker, edm::Run c
 void CTPPSCommonDQMSource::analyze(edm::Event const &event, edm::EventSetup const &eventSetup) {
   analyzeCTPPSRecord(event, eventSetup);
   analyzeTracks(event, eventSetup);
-  analyzeProtons(event, eventSetup);
+
+  if (makeProtonRecoPlots_)
+    analyzeProtons(event, eventSetup);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -352,7 +358,7 @@ void CTPPSCommonDQMSource::analyzeTracks(edm::Event const &event, edm::EventSetu
   map<unsigned int, set<signed int>> ms_rp_idx_arm;
 
   for (auto &tr : *hTracks) {
-    const CTPPSDetId rpId(tr.getRPId());
+    const CTPPSDetId rpId(tr.rpId());
     const unsigned int arm = rpId.arm();
     const unsigned int stNum = rpId.station();
     const unsigned int rpNum = rpId.rp();
@@ -430,7 +436,7 @@ void CTPPSCommonDQMSource::analyzeTracks(edm::Event const &event, edm::EventSetu
   map<unsigned int, set<unsigned int>> mTop, mHor, mBot;
 
   for (auto &tr : *hTracks) {
-    CTPPSDetId rpId(tr.getRPId());
+    CTPPSDetId rpId(tr.rpId());
     const unsigned int rpNum = rpId.rp();
     const unsigned int armIdx = rpId.arm();
 
@@ -448,8 +454,8 @@ void CTPPSCommonDQMSource::analyzeTracks(edm::Event const &event, edm::EventSetu
     {
       auto it = ap.trackingRPPlots.find(rpDecId);
       if (it != ap.trackingRPPlots.end()) {
-        it->second.h_x->Fill(tr.getX());
-        it->second.h_y->Fill(tr.getY());
+        it->second.h_x->Fill(tr.x());
+        it->second.h_y->Fill(tr.y());
       }
     }
 
@@ -457,8 +463,8 @@ void CTPPSCommonDQMSource::analyzeTracks(edm::Event const &event, edm::EventSetu
     {
       auto it = ap.timingRPPlots.find(rpDecId);
       if (it != ap.timingRPPlots.end()) {
-        it->second.h_x->Fill(tr.getX());
-        it->second.h_time->Fill(tr.getTime());
+        it->second.h_x->Fill(tr.x());
+        it->second.h_time->Fill(tr.time());
       }
     }
   }

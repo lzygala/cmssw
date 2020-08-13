@@ -15,7 +15,6 @@
  *********************************/
 
 #include <DQM/DTMonitorClient/src/DTRunConditionVarClient.h>
-#include <DQMServices/Core/interface/MonitorElement.h>
 #include <DQMServices/Core/interface/DQMStore.h>
 
 #include <FWCore/Framework/interface/EventSetup.h>
@@ -104,13 +103,13 @@ void DTRunConditionVarClient::dqmEndJob(DQMStore::IBooker& ibooker, DQMStore::IG
 
   summaryHistos["SigmaT0GlbSummary"] =
       ibooker.book2D("SigmaT0GlbSummary", "# of Chambers with good sigma T0", 12, 1., 13., 5, -2., 3.);
-  allwheelHistos["allSigmaT0"] = ibooker.book1D("T0SigmaAllWheels", "sigma T0 for alla chambers", 50, 0, 25);
+  allwheelHistos["allSigmaT0"] = ibooker.book1D("T0SigmaAllWheels", "sigma T0 for all chambers", 50, 0, 25);
 
   for (int wh = -2; wh <= 2; wh++) {
     bookWheelHistos(ibooker, "MeanVDrift", "02-MeanVDrift", wh, 60, 0.0048, 0.006, true);
     bookWheelHistos(ibooker, "SigmaVDrift", "02-SigmaVDrift", wh, 30, 0., 0.0006);
-    bookWheelHistos(ibooker, "MeanT0", "03-MeanT0", wh, 100, -25., 25.);
-    bookWheelHistos(ibooker, "SigmaT0", "03-SigmaT0", wh, 50, 0, 25);
+    bookWheelHistos(ibooker, "MeanT0", "03-MeanT0", wh, 100, -25., 25., false, true);
+    bookWheelHistos(ibooker, "SigmaT0", "03-SigmaT0", wh, 50, 0, 25, false, true);
   }
 
   for (int wheel = -2; wheel <= 2; wheel++) {
@@ -130,6 +129,7 @@ void DTRunConditionVarClient::dqmEndJob(DQMStore::IBooker& ibooker, DQMStore::IG
 
         // Get the means per chamber
         float vDriftMean = VDriftME->getMean();
+        T0ME->setAxisRange(-15, 15);
         float t0Mean = T0ME->getMean();
 
         // Get the sigma per chamber
@@ -148,8 +148,8 @@ void DTRunConditionVarClient::dqmEndJob(DQMStore::IBooker& ibooker, DQMStore::IG
           allwheelHistos["allMeanT0"]->Fill(t0Mean);
           allwheelHistos["allSigmaT0"]->Fill(t0Sigma);
 
-          (wheelHistos[wheel])["MeanT0"]->Fill(t0Mean);
-          (wheelHistos[wheel])["SigmaT0"]->Fill(t0Sigma);
+          (wheelRingHistos[wheel][stat])["MeanT0"]->Fill(t0Mean);
+          (wheelRingHistos[wheel][stat])["SigmaT0"]->Fill(t0Sigma);
         }
 
         DTChamberId indexCh(wheel, stat, sec);
@@ -277,7 +277,8 @@ void DTRunConditionVarClient::bookWheelHistos(DQMStore::IBooker& ibooker,
                                               int nbins,
                                               float min,
                                               float max,
-                                              bool isVDCorr) {
+                                              bool isVDCorr,
+                                              bool makeRings) {
   stringstream wheel;
   wheel << wh;
 
@@ -285,10 +286,28 @@ void DTRunConditionVarClient::bookWheelHistos(DQMStore::IBooker& ibooker,
 
   ibooker.setCurrentFolder(folder);
 
-  string histoName = histoType + "_W" + wheel.str();
-  string histoLabel = histoType;
+  string histoName;
+  string histoLabel;
 
-  (wheelHistos[wh])[histoType] = ibooker.book1D(histoName, histoLabel, nbins, min, max);
+  if (makeRings) {
+    ibooker.setCurrentFolder(folder + "/Wheel" + wheel.str());
+    for (int st = 1; st <= 4; st++) {
+      stringstream station;
+      station << st;
+
+      histoName = histoType + "_W" + wheel.str() + "_MB" + station.str();
+      histoLabel = histoType;
+
+      (wheelRingHistos[wh][st])[histoType] = ibooker.book1D(histoName, histoLabel, nbins, min, max);
+    }
+  } else {
+    histoName = histoType + "_W" + wheel.str();
+    histoLabel = histoType;
+
+    (wheelHistos[wh])[histoType] = ibooker.book1D(histoName, histoLabel, nbins, min, max);
+  }
+
+  ibooker.setCurrentFolder(folder);
 
   if (isVDCorr) {
     histoLabel = "Summary of corrections to VDrift DB values";
@@ -311,9 +330,9 @@ void DTRunConditionVarClient::bookWheelHistos(DQMStore::IBooker& ibooker,
   return;
 }
 
-MonitorElement* DTRunConditionVarClient::getChamberHistos(DQMStore::IGetter& igetter,
-                                                          const DTChamberId& dtCh,
-                                                          string histoType) {
+DTRunConditionVarClient::MonitorElement* DTRunConditionVarClient::getChamberHistos(DQMStore::IGetter& igetter,
+                                                                                   const DTChamberId& dtCh,
+                                                                                   string histoType) {
   int wh = dtCh.wheel();
   int sc = dtCh.sector();
   int st = dtCh.station();

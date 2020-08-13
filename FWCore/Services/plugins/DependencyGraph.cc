@@ -6,7 +6,7 @@
  *
  * Use GraphViz dot to generate an SVG representation of the dependencies:
  *
- *   dot -v -Tsvg dependency.gv -o dependency.svg
+ *   dot -v -Tsvg dependency.dot -o dependency.svg
  *
  */
 
@@ -159,7 +159,7 @@ const char *DependencyGraph::edmModuleType(edm::ModuleDescription const &module)
 
 void DependencyGraph::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
-  desc.addUntracked<std::string>("fileName", "dependency.gv");
+  desc.addUntracked<std::string>("fileName", "dependency.dot");
   desc.addUntracked<std::vector<std::string>>("highlightModules", {});
   desc.addUntracked<bool>("showPathDependencies", true);
   descriptions.add("DependencyGraph", desc);
@@ -291,11 +291,11 @@ void DependencyGraph::preBeginJob(PathsAndConsumesOfModulesBase const &pathsAndC
         if (not found) {
           edge_status = boost::add_edge(module->id(), previous->id(), m_graph);
           auto const &edge = edge_status.first;
-          auto &attributes = boost::get(boost::get(boost::edge_attribute, m_graph), edge);
-          attributes["style"] = "dashed";
+          auto &edgeAttributes = boost::get(boost::get(boost::edge_attribute, m_graph), edge);
+          edgeAttributes["style"] = "dashed";
           // highlight the arrow between highlighted nodes
           if (highlighted(module->moduleLabel()) and highlighted(previous->moduleLabel()))
-            attributes["color"] = "darkgreen";
+            edgeAttributes["color"] = "darkgreen";
         }
       }
       previous = module;
@@ -315,11 +315,11 @@ void DependencyGraph::preBeginJob(PathsAndConsumesOfModulesBase const &pathsAndC
         if (not found) {
           edge_status = boost::add_edge(module->id(), previous->id(), m_graph);
           auto const &edge = edge_status.first;
-          auto &attributes = boost::get(boost::get(boost::edge_attribute, m_graph), edge);
-          attributes["style"] = "dashed";
+          auto &edgeAttributes = boost::get(boost::get(boost::edge_attribute, m_graph), edge);
+          edgeAttributes["style"] = "dashed";
           // highlight the arrow between highlighted nodes
           if (highlighted(module->moduleLabel()) and highlighted(previous->moduleLabel()))
-            attributes["color"] = "darkgreen";
+            edgeAttributes["color"] = "darkgreen";
         }
       }
       previous = module;

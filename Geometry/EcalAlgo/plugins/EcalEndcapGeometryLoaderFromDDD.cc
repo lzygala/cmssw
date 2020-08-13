@@ -9,9 +9,12 @@ template <>
 void EcalEGL::fillGeom(EcalEndcapGeometry* geom,
                        const EcalEGL::ParmVec& vv,
                        const HepGeom::Transform3D& tr,
-                       const DetId& id);
+                       const DetId& id,
+                       const double& scale);
 template <>
 void EcalEGL::fillNamedParams(const DDFilteredView& fv, EcalEndcapGeometry* geom);
+template <>
+void EcalEGL::fillNamedParams(const cms::DDFilteredView& fv, EcalEndcapGeometry* geom);
 
 #include "Geometry/CaloEventSetup/interface/CaloGeometryLoader.icc"
 
@@ -22,11 +25,12 @@ template <>
 void EcalEGL::fillGeom(EcalEndcapGeometry* geom,
                        const EcalEGL::ParmVec& vv,
                        const HepGeom::Transform3D& tr,
-                       const DetId& id) {
+                       const DetId& id,
+                       const double& scale) {
   std::vector<CCGFloat> pv;
   pv.reserve(vv.size());
   for (unsigned int i(0); i != vv.size(); ++i) {
-    const CCGFloat factor(1 == i || 2 == i || 6 == i || 10 == i ? 1 : k_ScaleFromDDDtoGeant);
+    const CCGFloat factor(1 == i || 2 == i || 6 == i || 10 == i ? 1 : scale);
     pv.emplace_back(factor * vv[i]);
   }
 
@@ -79,4 +83,19 @@ void EcalEGL::fillNamedParams(const DDFilteredView& _fv, EcalEndcapGeometry* geo
 
     doSubDets = fv.nextSibling();  // go to next layer
   }
+}
+
+template <>
+void EcalEGL::fillNamedParams(const cms::DDFilteredView& fv, EcalEndcapGeometry* geom) {
+  const std::string specName = "ecal_ee";
+
+  //ncrys
+  std::vector<double> tempD = fv.get<std::vector<double> >(specName, "ncrys");
+  assert(tempD.size() == 1);
+  geom->setNumberOfCrystalPerModule((int)tempD[0]);
+
+  //nmods
+  tempD = fv.get<std::vector<double> >(specName, "nmods");
+  assert(tempD.size() == 1);
+  geom->setNumberOfModules((int)tempD[0]);
 }

@@ -6,29 +6,26 @@
  *  \author J. Lee - UoS
  */
 
-#include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Framework/interface/global/EDProducer.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
-#include "FWCore/Utilities/interface/InputTag.h"
+#include "FWCore/Utilities/interface/ESGetToken.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
 #include "DataFormats/FEDRawData/interface/FEDRawDataCollection.h"
 #include "DataFormats/GEMDigi/interface/GEMDigiCollection.h"
-#include "EventFilter/GEMRawToDigi/interface/GEMVfatStatusDigiCollection.h"
-#include "EventFilter/GEMRawToDigi/interface/GEMGEBdataCollection.h"
-#include "EventFilter/GEMRawToDigi/interface/GEMAMCdataCollection.h"
-#include "EventFilter/GEMRawToDigi/interface/GEMAMC13EventCollection.h"
+#include "DataFormats/GEMDigi/interface/GEMVfatStatusDigiCollection.h"
+#include "DataFormats/GEMDigi/interface/GEMGEBdataCollection.h"
+#include "DataFormats/GEMDigi/interface/GEMAMCdataCollection.h"
+#include "DataFormats/GEMDigi/interface/GEMAMC13EventCollection.h"
+#include "DataFormats/GEMDigi/interface/AMC13Event.h"
+#include "DataFormats/GEMDigi/interface/VFATdata.h"
+
+#include "EventFilter/GEMRawToDigi/interface/GEMRawToDigi.h"
 
 #include "CondFormats/DataRecord/interface/GEMeMapRcd.h"
 #include "CondFormats/GEMObjects/interface/GEMeMap.h"
 #include "CondFormats/GEMObjects/interface/GEMROMapping.h"
-#include "EventFilter/GEMRawToDigi/interface/AMC13Event.h"
-#include "EventFilter/GEMRawToDigi/interface/VFATdata.h"
-
-namespace edm {
-  class ConfigurationDescriptions;
-}
 
 class GEMRawToDigiModule : public edm::global::EDProducer<edm::RunCache<GEMROMapping> > {
 public:
@@ -45,8 +42,10 @@ public:
 
 private:
   edm::EDGetTokenT<FEDRawDataCollection> fed_token;
+  edm::ESGetToken<GEMeMap, GEMeMapRcd> gemEMapToken_;
   bool useDBEMap_;
   bool unPackStatusDigis_;
+  std::unique_ptr<GEMRawToDigi> gemRawToDigi_;
 };
 DEFINE_FWK_MODULE(GEMRawToDigiModule);
 #endif

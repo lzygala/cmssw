@@ -15,7 +15,7 @@
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 
 #include "DQMServices/Core/interface/DQMEDAnalyzer.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -40,9 +40,7 @@ public:
   ~TrackingRecoMaterialAnalyser() override;
 
 private:
-  inline bool isDoubleSided(SiStripDetId strip_id) {
-    return ((strip_id.subDetector() != SiStripDetId::UNKNOWN) && strip_id.glued());
-  }
+  inline bool isDoubleSided(const TrackerTopology *tTopo, DetId id) { return (tTopo->glued(id)); }
   TrackTransformer refitter_;
   const edm::EDGetTokenT<reco::TrackCollection> tracksToken_;
   const edm::EDGetTokenT<reco::BeamSpot> beamspotToken_;
@@ -183,6 +181,7 @@ void TrackingRecoMaterialAnalyser::analyze(const edm::Event &event, const edm::E
 
   // Get the TrackerTopology
   setup.get<TrackerTopologyRcd>().get(trk_topology);
+  const TrackerTopology *const tTopo = trk_topology.product();
 
   // Get Tracks
   event.getByToken(tracksToken_, tracks);
@@ -236,7 +235,7 @@ void TrackingRecoMaterialAnalyser::analyze(const edm::Event &event, const edm::E
   //   the track, which is seldom the case, according to the current direction
   TrajectoryStateOnSurface current_tsos;
   DetId current_det;
-  for (auto const track : *tracks) {
+  for (auto const &track : *tracks) {
     if (!selector(track, pv))
       continue;
     auto const &inner = track.innerMomentum();
@@ -295,23 +294,23 @@ void TrackingRecoMaterialAnalyser::analyze(const edm::Event &event, const edm::E
         // scaling of 0.5. The actual plane is built few lines below:
         // http://cmslxr.fnal.gov/dxr/CMSSW_8_0_5/source/Geometry/TrackerGeometryBuilder/src/TrackerGeomBuilderFromGeometricDet.cc#287
 
-        if (isDoubleSided(current_det)) {
+        if (isDoubleSided(tTopo, current_det)) {
           LogTrace("TrackingRecoMaterialAnalyser")
-              << "Eta: " << track.eta() << " " << sDETS[current_det.subdetId()] << trk_topology->layer(current_det)
+              << "Eta: " << track.eta() << " " << sDETS[current_det.subdetId()] << tTopo->layer(current_det)
               << " has ori_radLen: " << ori_radLen << " and ori_xi: " << xi << " and has radLen: " << radLen
               << "  and xi: " << xi << endl;
           ori_radLen *= 2.;
           radLen *= 2.;
         }
 
-        histosOriEta_[sDETS[current_det.subdetId()] + to_string(trk_topology->layer(current_det))]->Fill(
+        histosOriEta_[sDETS[current_det.subdetId()] + to_string(tTopo->layer(current_det))]->Fill(
             current_tsos.globalPosition().eta(), ori_radLen);
-        histosEta_[sDETS[current_det.subdetId()] + to_string(trk_topology->layer(current_det))]->Fill(
+        histosEta_[sDETS[current_det.subdetId()] + to_string(tTopo->layer(current_det))]->Fill(
             current_tsos.globalPosition().eta(), radLen);
         histo_RZ_Ori_->Fill(current_tsos.globalPosition().z(), current_tsos.globalPosition().perp(), ori_radLen);
         histo_RZ_->Fill(current_tsos.globalPosition().z(), current_tsos.globalPosition().perp(), radLen);
         LogInfo("TrackingRecoMaterialAnalyser")
-            << "Eta: " << track.eta() << " " << sDETS[current_det.subdetId()] << trk_topology->layer(current_det)
+            << "Eta: " << track.eta() << " " << sDETS[current_det.subdetId()] << tTopo->layer(current_det)
             << " has ori_radLen: " << ori_radLen << " and ori_xi: " << xi << " and has radLen: " << radLen
             << "  and xi: " << xi << endl;
       }

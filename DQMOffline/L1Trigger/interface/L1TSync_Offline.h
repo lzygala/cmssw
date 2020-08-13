@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 // User include files
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -37,7 +38,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
@@ -65,7 +65,7 @@ namespace ltso {
     bool lsIsValid = true;
   };
 }  // namespace ltso
-class L1TSync_Offline : public one::DQMEDAnalyzer<edm::LuminosityBlockCache<ltso::LSValid>> {
+class L1TSync_Offline : public DQMOneEDAnalyzer<edm::LuminosityBlockCache<ltso::LSValid>> {
 public:
   enum BeamMode {
     NOMODE = 1,

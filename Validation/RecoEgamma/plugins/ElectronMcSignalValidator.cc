@@ -4,7 +4,7 @@
 
 #include "RecoEgamma/EgammaElectronAlgos/interface/ElectronUtilities.h"
 
-#include "DQMServices/Core/interface/MonitorElement.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
@@ -576,7 +576,7 @@ void ElectronMcSignalValidator::bookHistograms(DQMStore::IBooker &iBooker, edm::
   h1_recTrackNum = bookH1(iBooker, "recTrackNum", "# rec gsf tracks", 41, -0.5, 40.5, "N_{track}");
   h1_recSeedNum = bookH1(iBooker, "recSeedNum", "# rec electron seeds", 101, -0.5, 100.5, "N_{seed}");
   h1_recOfflineVertices =
-      bookH1(iBooker, "recOfflineVertices", "# rec Offline Primary Vertices", 61, -0.5, 60.5, "N_{Vertices}");
+      bookH1(iBooker, "recOfflineVertices", "# rec Offline Primary Vertices", 81, -0.5, 161.5, "N_{Vertices}");
   h2_scl_EoEtrueVsrecOfflineVertices = bookH2(iBooker,
                                               "scl_EoEtrueVsrecOfflineVertices",
                                               "E/Etrue vs number of primary vertices",
@@ -3858,36 +3858,36 @@ void ElectronMcSignalValidator::analyze(const edm::Event &iEvent, const edm::Eve
     {
       edm::RefToBase<TrajectorySeed> seed = bestGsfElectron.gsfTrack()->extra()->seedRef();
       ElectronSeedRef elseed = seed.castTo<ElectronSeedRef>();
-      h1_ele_seed_subdet2->Fill(elseed->subDet2());
+      h1_ele_seed_subdet2->Fill(elseed->subDet(1));
       h1_ele_seed_mask->Fill(elseed->hitsMask());
-      if (elseed->subDet2() == 1) {
+      if (elseed->subDet(1) == 1) {
         h1_ele_seed_mask_bpix->Fill(elseed->hitsMask());
-      } else if (elseed->subDet2() == 2) {
+      } else if (elseed->subDet(1) == 2) {
         h1_ele_seed_mask_fpix->Fill(elseed->hitsMask());
-      } else if (elseed->subDet2() == 6) {
+      } else if (elseed->subDet(1) == 6) {
         h1_ele_seed_mask_tec->Fill(elseed->hitsMask());
       }
 
-      if (elseed->dPhi2() != std::numeric_limits<float>::infinity()) {
-        h1_ele_seed_dphi2->Fill(elseed->dPhi2());
-        h2_ele_seed_dphi2VsEta->Fill(bestGsfElectron.eta(), elseed->dPhi2());
-        h2_ele_seed_dphi2VsPt->Fill(bestGsfElectron.pt(), elseed->dPhi2());
+      if (elseed->dPhiNeg(1) != std::numeric_limits<float>::infinity()) {
+        h1_ele_seed_dphi2->Fill(elseed->dPhiNeg(1));
+        h2_ele_seed_dphi2VsEta->Fill(bestGsfElectron.eta(), elseed->dPhiNeg(1));
+        h2_ele_seed_dphi2VsPt->Fill(bestGsfElectron.pt(), elseed->dPhiNeg(1));
       } else {
       }
-      if (elseed->dPhi2Pos() != std::numeric_limits<float>::infinity()) {
-        h1_ele_seed_dphi2pos->Fill(elseed->dPhi2Pos());
-        h2_ele_seed_dphi2posVsEta->Fill(bestGsfElectron.eta(), elseed->dPhi2Pos());
-        h2_ele_seed_dphi2posVsPt->Fill(bestGsfElectron.pt(), elseed->dPhi2Pos());
+      if (elseed->dPhiPos(1) != std::numeric_limits<float>::infinity()) {
+        h1_ele_seed_dphi2pos->Fill(elseed->dPhiPos(1));
+        h2_ele_seed_dphi2posVsEta->Fill(bestGsfElectron.eta(), elseed->dPhiPos(1));
+        h2_ele_seed_dphi2posVsPt->Fill(bestGsfElectron.pt(), elseed->dPhiPos(1));
       }
-      if (elseed->dRz2() != std::numeric_limits<float>::infinity()) {
-        h1_ele_seed_drz2->Fill(elseed->dRz2());
-        h2_ele_seed_drz2VsEta->Fill(bestGsfElectron.eta(), elseed->dRz2());
-        h2_ele_seed_drz2VsPt->Fill(bestGsfElectron.pt(), elseed->dRz2());
+      if (elseed->dRZNeg(1) != std::numeric_limits<float>::infinity()) {
+        h1_ele_seed_drz2->Fill(elseed->dRZNeg(1));
+        h2_ele_seed_drz2VsEta->Fill(bestGsfElectron.eta(), elseed->dRZNeg(1));
+        h2_ele_seed_drz2VsPt->Fill(bestGsfElectron.pt(), elseed->dRZNeg(1));
       }
-      if (elseed->dRz2Pos() != std::numeric_limits<float>::infinity()) {
-        h1_ele_seed_drz2pos->Fill(elseed->dRz2Pos());
-        h2_ele_seed_drz2posVsEta->Fill(bestGsfElectron.eta(), elseed->dRz2Pos());
-        h2_ele_seed_drz2posVsPt->Fill(bestGsfElectron.pt(), elseed->dRz2Pos());
+      if (elseed->dRZPos(1) != std::numeric_limits<float>::infinity()) {
+        h1_ele_seed_drz2pos->Fill(elseed->dRZPos(1));
+        h2_ele_seed_drz2posVsEta->Fill(bestGsfElectron.eta(), elseed->dRZPos(1));
+        h2_ele_seed_drz2posVsPt->Fill(bestGsfElectron.pt(), elseed->dRZPos(1));
       }
     }
 

@@ -26,8 +26,16 @@ void CSCSimHitMatcher::init(const edm::Event& iEvent, const edm::EventSetup& iSe
 
 /// do the matching
 void CSCSimHitMatcher::match(const SimTrack& track, const SimVertex& vertex) {
+  clear();
+
   // instantiates the track ids and simhits
   MuonSimHitMatcher::match(track, vertex);
+
+  // hard cut on non-CSC muons
+  if (std::abs(track.momentum().eta()) < 0.9)
+    return;
+  if (std::abs(track.momentum().eta()) > 2.45)
+    return;
 
   if (hasGeometry_) {
     matchSimHitsToSimTrack();
@@ -65,7 +73,7 @@ void CSCSimHitMatcher::matchSimHitsToSimTrack() {
       if (simMuOnly_ && std::abs(pdgid) != 13)
         continue;
       // discard electron hits in the CSC chambers
-      if (discardEleHits_ && pdgid == 11)
+      if (discardEleHits_ && std::abs(pdgid) == 11)
         continue;
 
       const CSCDetId& layer_id(h.detUnitId());
@@ -340,3 +348,5 @@ std::set<unsigned int> CSCSimHitMatcher::chamberIdsStation(int station) const {
   };
   return result;
 }
+
+void CSCSimHitMatcher::clear() { MuonSimHitMatcher::clear(); }

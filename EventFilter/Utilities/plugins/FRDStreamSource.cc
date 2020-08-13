@@ -1,7 +1,9 @@
-#include <zlib.h>
 #include <iostream>
+#include <memory>
+#include <zlib.h>
 
 #include "IOPool/Streamer/interface/FRDEventMessage.h"
+#include "IOPool/Streamer/interface/FRDFileHeader.h"
 
 #include "DataFormats/FEDRawData/interface/FEDRawDataCollection.h"
 #include "DataFormats/FEDRawData/interface/FEDNumbering.h"
@@ -20,7 +22,7 @@ FRDStreamSource::FRDStreamSource(edm::ParameterSet const& pset, edm::InputSource
       verifyAdler32_(pset.getUntrackedParameter<bool>("verifyAdler32", true)),
       verifyChecksum_(pset.getUntrackedParameter<bool>("verifyChecksum", true)),
       useL1EventID_(pset.getUntrackedParameter<bool>("useL1EventID", false)) {
-  itFileName_ = fileNames().begin();
+  itFileName_ = fileNames(0).begin();
   openFile(*itFileName_);
   produces<FEDRawDataCollection>();
 }
@@ -29,12 +31,35 @@ bool FRDStreamSource::setRunAndEventInfo(edm::EventID& id,
                                          edm::TimeValue_t& theTime,
                                          edm::EventAuxiliary::ExperimentType& eType) {
   if (fin_.peek() == EOF) {
-    if (++itFileName_ == fileNames().end()) {
+    if (++itFileName_ == fileNames(0).end()) {
       fin_.close();
       return false;
     }
     if (!openFile(*itFileName_)) {
       throw cms::Exception("FRDStreamSource::setRunAndEventInfo") << "could not open file " << *itFileName_;
+    }
+  }
+  //look for FRD header at beginning of the file and skip it
+  if (fin_.tellg() == 0) {
+    constexpr size_t buf_sz = sizeof(FRDFileHeader_v1);  //try to read v1 FRD header size
+    FRDFileHeader_v1 fileHead;
+    fin_.read((char*)&fileHead, buf_sz);
+
+    if (fin_.gcount() == 0)
+      throw cms::Exception("FRDStreamSource::setRunAndEventInfo")
+          << "Unable to read file or empty file" << *itFileName_;
+    else if (fin_.gcount() < (ssize_t)buf_sz)
+      fin_.seekg(0);
+    else {
+      uint16_t frd_version = getFRDFileHeaderVersion(fileHead.id_, fileHead.version_);
+      if (frd_version >= 1) {
+        if (fileHead.headerSize_ < buf_sz)
+          throw cms::Exception("FRDStreamSource::setRunAndEventInfo")
+              << "Invalid FRD file header (size mismatch) in file " << *itFileName_;
+        else if (fileHead.headerSize_ > buf_sz)
+          fin_.seekg(fileHead.headerSize_, fin_.beg);
+      } else
+        fin_.seekg(0, fin_.beg);
     }
   }
 
@@ -67,7 +92,7 @@ bool FRDStreamSource::setRunAndEventInfo(edm::EventID& id,
     if (fin_.gcount() != totalSize - FRDHeaderVersionSize[detectedFRDversion_]) {
       throw cms::Exception("FRDStreamSource::setRunAndEventInfo") << "premature end of file " << *itFileName_;
     }
-    frdEventMsg.reset(new FRDEventMsgView(&buffer_[0]));
+    frdEventMsg = std::make_unique<FRDEventMsgView>(&buffer_[0]);
   }
 
   if (verifyChecksum_ && frdEventMsg->version() >= 5) {

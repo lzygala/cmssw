@@ -15,8 +15,10 @@
 ///
 ///////////////////////////////////////////////////////////////////////
 
-#include <string>
+#include <memory>
+
 #include <map>
+#include <string>
 //#include <vector>
 #include <sstream>
 #include <fstream>
@@ -84,7 +86,7 @@ AlCaRecoTriggerBitsRcdRead::AlCaRecoTriggerBitsRcdRead(const edm::ParameterSet &
       break;
   }
   if (!fileName.empty()) {
-    output_.reset(new std::ofstream(fileName.c_str()));
+    output_ = std::make_unique<std::ofstream>(fileName.c_str());
     if (!output_->good()) {
       edm::LogError("IOproblem") << "Could not open output file " << fileName << ".";
       output_.reset();
@@ -146,7 +148,7 @@ void AlCaRecoTriggerBitsRcdRead::printMap(edm::RunNumber_t firstRun,
   switch (outputType_) {
     case kPython:
       output << "  triggerLists = cms.VPSet(\n";
-      // no 'break;'!
+      [[fallthrough]];
     case kText:
       output << "#\n# AlCaRecoTriggerBits settings for IOV " << firstRun << "-" << lastRun << ":\n#\n";
       break;

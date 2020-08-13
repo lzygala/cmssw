@@ -1,9 +1,10 @@
 
+#include <memory>
+
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
-#include "FWCore/Framework/interface/ProducerBase.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "SimCalorimetry/EcalSimAlgos/interface/EBHitResponse.h"
@@ -13,15 +14,15 @@
 #include "SimDataFormats/EcalTestBeam/interface/PEcalTBInfo.h"
 
 EcalTBDigiProducer::EcalTBDigiProducer(const edm::ParameterSet &params,
-                                       edm::ProducerBase &mixMod,
+                                       edm::ProducesCollector producesCollector,
                                        edm::ConsumesCollector &iC)
-    : EcalDigiProducer(params, mixMod, iC) {
+    : EcalDigiProducer(params, producesCollector, iC) {
   std::string const instance("simEcalUnsuppressedDigis");
   m_EBdigiFinalTag = params.getParameter<std::string>("EBdigiFinalCollection");
   m_EBdigiTempTag = params.getParameter<std::string>("EBdigiCollection");
 
-  mixMod.produces<EBDigiCollection>(instance + m_EBdigiFinalTag);  // after selective readout
-  mixMod.produces<EcalTBTDCRawInfo>(instance);
+  producesCollector.produces<EBDigiCollection>(instance + m_EBdigiFinalTag);  // after selective readout
+  producesCollector.produces<EcalTBTDCRawInfo>(instance);
 
   const bool syncPhase(params.getParameter<bool>("syncPhase"));
 
@@ -67,7 +68,7 @@ void EcalTBDigiProducer::initializeEvent(edm::Event const &event, edm::EventSetu
 
   m_theTBReadout->setDetIds(theBarrelDets);
 
-  m_TDCproduct.reset(new EcalTBTDCRawInfo(1));
+  m_TDCproduct = std::make_unique<EcalTBTDCRawInfo>(1);
   if (m_doPhaseShift) {
     edm::Handle<PEcalTBInfo> theEcalTBInfo;
     event.getByLabel(m_ecalTBInfoLabel, theEcalTBInfo);
@@ -82,7 +83,7 @@ void EcalTBDigiProducer::initializeEvent(edm::Event const &event, edm::EventSetu
 }
 
 void EcalTBDigiProducer::finalizeEvent(edm::Event &event, const edm::EventSetup &eventSetup) {
-  m_ebDigis.reset(new EBDigiCollection);
+  m_ebDigis = std::make_unique<EBDigiCollection>();
 
   EcalDigiProducer::finalizeEvent(event, eventSetup);
 
@@ -139,7 +140,7 @@ void EcalTBDigiProducer::fillTBTDCRawInfo(EcalTBTDCRawInfo &theTBTDCRawInfo) {
 }
 
 void EcalTBDigiProducer::cacheEBDigis(const EBDigiCollection *ebDigiPtr) const {
-  m_ebDigis.reset(new EBDigiCollection);
+  m_ebDigis = std::make_unique<EBDigiCollection>();
   *m_ebDigis = *ebDigiPtr;
 }
 

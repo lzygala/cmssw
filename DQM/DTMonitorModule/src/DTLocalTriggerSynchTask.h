@@ -20,7 +20,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 
 #include <DQMServices/Core/interface/DQMEDAnalyzer.h>
@@ -79,13 +78,10 @@ private:
 
   DTArr3int phCodeBestTM;
   DTArr4int phCodeBXTM;
-  DTArr3int phCodeBestDDU;
-  DTArr3int thCodeBestDDU;
   DTArr3int segHitBest;
 
   float bxTime;
   bool rangeInBX;
-  bool processDDU;
   int nBXLow;
   int nBXHigh;
   float angleRange;
@@ -100,7 +96,6 @@ private:
   MonitorElement* tm_IDDataErrorPlot;
 
   edm::EDGetTokenT<L1MuDTChambPhContainer> tm_Token_;
-  edm::EDGetTokenT<DTLocalTriggerCollection> ddu_Token_;
   edm::EDGetTokenT<DTRecSegment4DCollection> seg_Token_;
 };
 

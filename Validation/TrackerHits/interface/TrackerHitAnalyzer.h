@@ -15,11 +15,9 @@
 
 #include "SimDataFormats/Track/interface/SimTrackContainer.h"
 #include "SimDataFormats/TrackingHit/interface/PSimHitContainer.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include <string>
-
-class DQMStore;
-class MonitorElement;
 
 class TrackerHitAnalyzer : public DQMEDAnalyzer {
 public:
@@ -34,9 +32,6 @@ protected:
 
   /// Analyze
   void analyze(const edm::Event &e, const edm::EventSetup &c) override;
-
-  // EndJob
-  void endJob() override;
 
   // void BookTestHistos(Char_t sname, int nbin, float *xmin, float *xmax);
 

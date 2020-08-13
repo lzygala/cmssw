@@ -6,13 +6,13 @@
 
 TEST_CASE("Test SiteLocalConfigService", "[sitelocalconfig]") {
   std::string dirString;
-  auto dir = getenv("LOCAL_TEST_DIR");
+  auto dir = std::getenv("LOCAL_TEST_DIR");
   if (dir) {
     dirString = dir;
   } else {
-    auto dir = getenv("CMSSW_BASE");
-    if (dir) {
-      dirString = dir;
+    auto base_dir = std::getenv("CMSSW_BASE");
+    if (base_dir) {
+      dirString = base_dir;
       dirString += "/src/FWCore/Services/test";
     }
   }
@@ -23,8 +23,7 @@ TEST_CASE("Test SiteLocalConfigService", "[sitelocalconfig]") {
 
     edm::service::SiteLocalConfigService slc(pset);
 
-    CHECK(slc.dataCatalog() == "trivialcatalog_file:/dummy/storage.xml?protocol=dcap");
-    CHECK(slc.fallbackDataCatalog().empty());
+    CHECK(slc.dataCatalogs()[0] == "trivialcatalog_file:/dummy/storage.xml?protocol=dcap");
     REQUIRE(slc.sourceCacheTempDir() != nullptr);
     CHECK(*slc.sourceCacheTempDir() == "/a/b/c");
     CHECK(slc.sourceCacheMinFree() == nullptr);
@@ -67,8 +66,7 @@ TEST_CASE("Test SiteLocalConfigService", "[sitelocalconfig]") {
 
     edm::service::SiteLocalConfigService slc(pset);
 
-    CHECK(slc.dataCatalog() == "trivialcatalog_file:/dummy/storage.xml?protocol=dcap");
-    CHECK(slc.fallbackDataCatalog().empty());
+    CHECK(slc.dataCatalogs()[0] == "trivialcatalog_file:/dummy/storage.xml?protocol=dcap");
     REQUIRE(slc.sourceCacheTempDir() != nullptr);
     CHECK(*slc.sourceCacheTempDir() == "/a/d");
     REQUIRE(slc.sourceCacheMinFree() != nullptr);

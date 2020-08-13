@@ -12,7 +12,6 @@
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "Geometry/CaloGeometry/interface/CaloSubdetectorGeometry.h"
 #include "Geometry/CaloTopology/interface/CaloTopology.h"
-#include "Geometry/CaloEventSetup/interface/CaloTopologyRecord.h"
 
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
@@ -36,12 +35,9 @@
 #include "RecoEgamma/EgammaPhotonProducers/interface/ReducedEGProducer.h"
 #include "RecoEgamma/EgammaIsolationAlgos/interface/EgammaTowerIsolation.h"
 
-#include "RecoEcal/EgammaCoreTools/interface/EcalClusterFunctionBaseClass.h"
-#include "RecoEcal/EgammaCoreTools/interface/EcalClusterFunctionFactory.h"
-#include "RecoEcal/EgammaCoreTools/plugins/EcalClusterCrackCorrection.h"
 #include "RecoEgamma/EgammaIsolationAlgos/interface/EgammaHadTower.h"
 
-#include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
+#include "CommonTools/Egamma/interface/ConversionTools.h"
 
 ReducedEGProducer::ReducedEGProducer(const edm::ParameterSet& config)
     : photonT_(consumes<reco::PhotonCollection>(config.getParameter<edm::InputTag>("photons"))),
@@ -101,8 +97,9 @@ ReducedEGProducer::ReducedEGProducer(const edm::ParameterSet& config)
       keepGsfElectronSel_(config.getParameter<std::string>("keepGsfElectrons")),
       slimRelinkGsfElectronSel_(config.getParameter<std::string>("slimRelinkGsfElectrons")),
       relinkGsfElectronSel_(config.getParameter<std::string>("relinkGsfElectrons")),
-      hcalHitSel_(config.getParameter<edm::ParameterSet>("hcalHitSel")) {
+      hcalHitSel_(config.getParameter<edm::ParameterSet>("hcalHitSel"), consumesCollector()) {
   const edm::InputTag& aTag = config.getParameter<edm::InputTag>("ootPhotons");
+  caloTopology_ = esConsumes<CaloTopology, CaloTopologyRecord>();
   if (not aTag.label().empty())
     ootPhotonT_ = consumes<reco::PhotonCollection>(aTag);
 
@@ -285,8 +282,7 @@ void ReducedEGProducer::produce(edm::Event& theEvent, const edm::EventSetup& the
     theEvent.getByToken(photonCalibEnergyErrT_, photonCalibEnergyErrHandle);
   }
 
-  edm::ESHandle<CaloTopology> theCaloTopology;
-  theEventSetup.get<CaloTopologyRecord>().get(theCaloTopology);
+  edm::ESHandle<CaloTopology> theCaloTopology = theEventSetup.getHandle(caloTopology_);
   const CaloTopology* caloTopology = &(*theCaloTopology);
 
   //initialize output collections

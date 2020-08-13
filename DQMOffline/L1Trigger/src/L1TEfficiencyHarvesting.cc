@@ -66,8 +66,8 @@ namespace dqmoffline {
       }
 
       MonitorElement::Kind kind = num->kind();
-      bool is1D = kind == MonitorElement::DQM_KIND_TH1F || kind == MonitorElement::DQM_KIND_TH1D;
-      bool is2D = kind == MonitorElement::DQM_KIND_TH2F || kind == MonitorElement::DQM_KIND_TH2D;
+      bool is1D = kind == MonitorElement::Kind::TH1F || kind == MonitorElement::Kind::TH1D;
+      bool is2D = kind == MonitorElement::Kind::TH2F || kind == MonitorElement::Kind::TH2D;
 
       if (is2D) {
         if (numH->GetNbinsY() != denH->GetNbinsY()) {
@@ -109,9 +109,9 @@ namespace dqmoffline {
         edm::LogInfo("L1TEfficiencyHarvesting") << "____________ Storage initialization ____________ " << endl;
       }
 
-      for (auto plotConfig : ps.getUntrackedParameter<std::vector<edm::ParameterSet>>("plotCfgs")) {
+      for (const auto &plotConfig : ps.getUntrackedParameter<std::vector<edm::ParameterSet>>("plotCfgs")) {
         vector<string> plots = plotConfig.getUntrackedParameter<vector<string>>("plots");
-        for (auto plot : plots) {
+        for (const auto &plot : plots) {
           plotHandlers_.push_back(L1TEfficiencyPlotHandler(plotConfig, plot));
         }
       }

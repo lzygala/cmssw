@@ -1,15 +1,19 @@
 #include "RecoLocalCalo/HGCalRecProducers/plugins/HGCalRecHitWorkerSimple.h"
-#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
-#include "DataFormats/ForwardDetId/interface/ForwardSubdetector.h"
-#include "FWCore/Framework/interface/EventSetup.h"
-#include "FWCore/Framework/interface/Event.h"
-#include "FWCore/MessageLogger/interface/MessageLogger.h"
+
+#include <memory>
+
 #include "CommonTools/Utils/interface/StringToEnumValue.h"
+#include "DataFormats/ForwardDetId/interface/ForwardSubdetector.h"
+#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 #include "DataFormats/HcalDetId/interface/HcalSubdetector.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "RecoLocalCalo/HGCalRecProducers/interface/ComputeClusterTime.h"
 
 HGCalRecHitWorkerSimple::HGCalRecHitWorkerSimple(const edm::ParameterSet& ps) : HGCalRecHitWorkerBaseClass(ps) {
-  rechitMaker_.reset(new HGCalRecHitSimpleAlgo());
-  tools_.reset(new hgcal::RecHitTools());
+  rechitMaker_ = std::make_unique<HGCalRecHitSimpleAlgo>();
+  tools_ = std::make_unique<hgcal::RecHitTools>();
   constexpr float keV2GeV = 1e-6;
   // HGCee constants
   hgcEE_keV2DIGI_ = ps.getParameter<double>("HGCEE_keV2DIGI");
@@ -47,11 +51,22 @@ HGCalRecHitWorkerSimple::HGCalRecHitWorkerSimple(const edm::ParameterSet& ps) : 
   rechitMaker_->setNoseLayerWeights(weightsNose_);
 
   // residual correction for cell thickness
+  // first for silicon
   const auto& rcorr = ps.getParameter<std::vector<double> >("thicknessCorrection");
   rcorr_.clear();
   rcorr_.push_back(1.f);
   for (auto corr : rcorr) {
     rcorr_.push_back(1.0 / corr);
+  }
+  // here for scintillator
+  rcorrscint_ = ps.getParameter<double>("sciThicknessCorrection");
+  //This is for the index position in CE_H silicon thickness cases
+  deltasi_index_regemfac_ = ps.getParameter<int>("deltasi_index_regemfac");
+  const auto& rcorrnose = ps.getParameter<std::vector<double> >("thicknessNoseCorrection");
+  rcorrNose_.clear();
+  rcorrNose_.push_back(1.f);
+  for (auto corr : rcorrnose) {
+    rcorrNose_.push_back(1.0 / corr);
   }
 
   hgcEE_noise_fC_ = ps.getParameter<edm::ParameterSet>("HGCEE_noise_fC").getParameter<std::vector<double> >("values");
@@ -66,11 +81,19 @@ HGCalRecHitWorkerSimple::HGCalRecHitWorkerSimple(const edm::ParameterSet& ps) : 
   // don't produce rechit if detid is a ghost one
   rangeMatch_ = ps.getParameter<uint32_t>("rangeMatch");
   rangeMask_ = ps.getParameter<uint32_t>("rangeMask");
+
+  // error for recHit time
+  timeEstimatorSi_ = hgcalsimclustertime::ComputeClusterTime(ps.getParameter<double>("minValSiPar"),
+                                                             ps.getParameter<double>("maxValSiPar"),
+                                                             ps.getParameter<double>("constSiPar"),
+                                                             ps.getParameter<double>("noiseSiPar"));
 }
 
 void HGCalRecHitWorkerSimple::set(const edm::EventSetup& es) {
-  tools_->getEventSetup(es);
-  rechitMaker_->set(es);
+  edm::ESHandle<CaloGeometry> geom;
+  es.get<CaloGeometryRecord>().get(geom);
+  tools_->setGeometry(*geom);
+  rechitMaker_->set(*geom);
   if (hgcEE_isSiFE_) {
     edm::ESHandle<HGCalGeometry> hgceeGeoHandle;
     es.get<IdealGeometryRecord>().get("HGCalEESensitive", hgceeGeoHandle);
@@ -135,6 +158,7 @@ bool HGCalRecHitWorkerSimple::run(const edm::Event& evt,
           thickness = ddds_[detid.subdetId() - 3]->waferTypeL(HGCalDetId(detid).wafer());
           break;
         case HcalEndcap:
+          [[fallthrough]];
         case HGCHEB:
           idtype = hgcbh;
           break;
@@ -156,8 +180,8 @@ bool HGCalRecHitWorkerSimple::run(const edm::Event& evt,
     case hgcfh:
       rechitMaker_->setADCToGeVConstant(float(hgchefUncalib2GeV_));
       cce_correction = hgcHEF_cce_[thickness - 1];
-      sigmaNoiseGeV = 1e-3 * weights_[layer] * rcorr_[thickness] * hgcHEF_noise_fC_[thickness - 1] /
-                      hgcHEF_fCPerMIP_[thickness - 1];
+      sigmaNoiseGeV = 1e-3 * weights_[layer] * rcorr_[thickness + deltasi_index_regemfac_] *
+                      hgcHEF_noise_fC_[thickness - 1] / hgcHEF_fCPerMIP_[thickness - 1];
       break;
     case hgcbh:
       rechitMaker_->setADCToGeVConstant(float(hgchebUncalib2GeV_));
@@ -166,7 +190,7 @@ bool HGCalRecHitWorkerSimple::run(const edm::Event& evt,
     case hgchfnose:
       rechitMaker_->setADCToGeVConstant(float(hgchfnoseUncalib2GeV_));
       cce_correction = hgcHFNose_cce_[thickness - 1];
-      sigmaNoiseGeV = 1e-3 * weightsNose_[layer] * rcorr_[thickness] * hgcHFNose_noise_fC_[thickness - 1] /
+      sigmaNoiseGeV = 1e-3 * weightsNose_[layer] * rcorrNose_[thickness] * hgcHFNose_noise_fC_[thickness - 1] /
                       hgcHFNose_fCPerMIP_[thickness - 1];
       break;
     default:
@@ -176,10 +200,28 @@ bool HGCalRecHitWorkerSimple::run(const edm::Event& evt,
   // make the rechit and put in the output collection
 
   HGCRecHit myrechit(rechitMaker_->makeRecHit(uncalibRH, 0));
-  const double new_E = myrechit.energy() * (thickness == -1 ? 1.0 : rcorr_[thickness]) / cce_correction;
+  double new_E = myrechit.energy();
+  if (detid.det() == DetId::Forward && detid.subdetId() == ForwardSubdetector::HFNose) {
+    new_E *= (thickness == -1 ? 1.0 : rcorrNose_[thickness]) / cce_correction;
+  }  //regional factors for silicon in CE_H
+  else if (idtype == hgcfh) {
+    new_E *= rcorr_[thickness + deltasi_index_regemfac_] / cce_correction;
+  }  //regional factors for scintillator and silicon in CE_E
+  else {
+    new_E *= (thickness == -1 ? rcorrscint_ : rcorr_[thickness]) / cce_correction;
+  }
 
   myrechit.setEnergy(new_E);
-  myrechit.setSignalOverSigmaNoise(new_E / sigmaNoiseGeV);
+  float SoN = new_E / sigmaNoiseGeV;
+  myrechit.setSignalOverSigmaNoise(SoN);
+
+  if (detid.det() == DetId::HGCalHSc || myrechit.time() < 0.) {
+    myrechit.setTimeError(-1.);
+  } else {
+    float timeError = timeEstimatorSi_.getTimeError("recHit", SoN);
+    myrechit.setTimeError(timeError);
+  }
+
   result.push_back(myrechit);
 
   return true;

@@ -17,7 +17,7 @@
 
 // DQM include files
 
-#include "DQMServices/Core/interface/MonitorElement.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 // work on collections
 
@@ -33,7 +33,6 @@
 #include "EventFilter/HcalRawToDigi/interface/HcalHTRData.h"
 
 #include "DQMOffline/CalibCalo/src/DQMHcalPhiSymAlCaReco.h"
-#include "DQMServices/Core/interface/DQMStore.h"
 
 using namespace std;
 using namespace edm;
@@ -440,7 +439,7 @@ void DQMHcalPhiSymAlCaReco::analyze(const Event &iEvent, const EventSetup &iSetu
 
 //--------------------------------------------------------
 //--------------------------------------------------------
-void DQMHcalPhiSymAlCaReco::endRun(const Run &r, const EventSetup &context) {
+void DQMHcalPhiSymAlCaReco::dqmEndRun(const Run &r, const EventSetup &context) {
   // Keep Variances
   if (eventCounter_ > 0) {
     for (int k = 0; k <= hiDistr_x_nbin_; k++) {

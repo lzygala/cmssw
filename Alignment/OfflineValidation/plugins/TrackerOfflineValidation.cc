@@ -62,7 +62,6 @@
 #include "Geometry/CommonDetUnit/interface/GeomDet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "Alignment/CommonAlignment/interface/Alignable.h"
 #include "Alignment/CommonAlignment/interface/Utilities.h"
@@ -78,6 +77,7 @@
 //
 class TrackerOfflineValidation : public edm::EDAnalyzer {
 public:
+  typedef dqm::legacy::DQMStore DQMStore;
   explicit TrackerOfflineValidation(const edm::ParameterSet&);
   ~TrackerOfflineValidation() override;
 
@@ -176,7 +176,7 @@ private:
         if (newDir.length() == 0)
           tfd.reset(&(*upDir.tfd));
         else
-          tfd.reset(new TFileDirectory(upDir.tfd->mkdir(newDir)));
+          tfd = std::make_unique<TFileDirectory>(upDir.tfd->mkdir(newDir));
       } else {
         theDbe = edm::Service<DQMStore>().operator->();
       }
@@ -187,9 +187,9 @@ private:
       if (!dqmMode) {
         edm::Service<TFileService> fs;
         if (newDir.length() == 0) {
-          tfd.reset(new TFileDirectory(fs->tFileDirectory()));
+          tfd = std::make_unique<TFileDirectory>(fs->tFileDirectory());
         } else {
-          tfd.reset(new TFileDirectory(fs->mkdir(newDir)));
+          tfd = std::make_unique<TFileDirectory>(fs->mkdir(newDir));
           directoryString = newDir;
         }
       } else {

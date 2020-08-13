@@ -21,7 +21,7 @@
 #include "Geometry/CommonDetUnit/interface/TrackingGeometry.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/Records/interface/TrackerTopologyRcd.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
 #include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
 
@@ -664,7 +664,7 @@ bool SiStripGainsPCLHarvester::produceTagFilter(const MonitorElement* Charge_Vs_
 
 //********************************************************************************//
 std::unique_ptr<SiStripApvGain> SiStripGainsPCLHarvester::getNewObject(const MonitorElement* Charge_Vs_Index) {
-  std::unique_ptr<SiStripApvGain> obj = std::unique_ptr<SiStripApvGain>(new SiStripApvGain());
+  std::unique_ptr<SiStripApvGain> obj = std::make_unique<SiStripApvGain>();
 
   if (!produceTagFilter(Charge_Vs_Index)) {
     edm::LogWarning("SiStripGainsPCLHarvester")

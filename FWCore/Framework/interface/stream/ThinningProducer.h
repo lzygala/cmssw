@@ -30,14 +30,14 @@ namespace edm {
   class ThinningProducer : public stream::EDProducer<> {
   public:
     explicit ThinningProducer(ParameterSet const& pset);
-    virtual ~ThinningProducer();
+    ~ThinningProducer() override;
 
     static void fillDescriptions(ConfigurationDescriptions& descriptions);
 
-    virtual void produce(Event& event, EventSetup const& eventSetup) override;
+    void produce(Event& event, EventSetup const& eventSetup) override;
 
-    virtual void registerThinnedAssociations(ProductRegistry const& productRegistry,
-                                             ThinnedAssociationsHelper& thinnedAssociationsHelper) override;
+    void registerThinnedAssociations(ProductRegistry const& productRegistry,
+                                     ThinnedAssociationsHelper& thinnedAssociationsHelper) override;
 
   private:
     edm::propagate_const<std::unique_ptr<Selector>> selector_;
@@ -65,8 +65,8 @@ namespace edm {
     ParameterSetDescription desc;
     desc.setComment("Produces thinned collections and associations to them");
     desc.add<edm::InputTag>("inputTag");
-    Selector::fillDescription(desc);
-    descriptions.addDefault(desc);
+    Selector::fillPSetDescription(desc);
+    descriptions.addWithDefaultLabel(desc);
   }
 
   template <typename Collection, typename Selector>

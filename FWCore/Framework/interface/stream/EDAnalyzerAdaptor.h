@@ -21,6 +21,7 @@
 // system include files
 
 // user include files
+#include "FWCore/Framework/interface/ProcessBlock.h"
 #include "FWCore/Framework/interface/Run.h"
 #include "FWCore/Framework/interface/LuminosityBlock.h"
 #include "FWCore/Framework/interface/RunPrincipal.h"
@@ -63,17 +64,21 @@ namespace edm {
       static void fillDescriptions(ConfigurationDescriptions& descriptions) { T::fillDescriptions(descriptions); }
       static void prevalidate(ConfigurationDescriptions& descriptions) { T::prevalidate(descriptions); }
 
+      bool wantsProcessBlocks() const final { return T::HasAbility::kWatchProcessBlock; }
+      bool wantsInputProcessBlocks() const final { return T::HasAbility::kInputProcessBlockCache; }
       bool wantsGlobalRuns() const final { return T::HasAbility::kRunCache or T::HasAbility::kRunSummaryCache; }
       bool wantsGlobalLuminosityBlocks() const final {
         return T::HasAbility::kLuminosityBlockCache or T::HasAbility::kLuminosityBlockSummaryCache;
       }
 
     private:
-      typedef CallGlobal<T> MyGlobal;
-      typedef CallGlobalRun<T> MyGlobalRun;
-      typedef CallGlobalRunSummary<T> MyGlobalRunSummary;
-      typedef CallGlobalLuminosityBlock<T> MyGlobalLuminosityBlock;
-      typedef CallGlobalLuminosityBlockSummary<T> MyGlobalLuminosityBlockSummary;
+      using MyGlobal = CallGlobal<T>;
+      using MyInputProcessBlock = CallInputProcessBlock<T>;
+      using MyWatchProcessBlock = CallWatchProcessBlock<T>;
+      using MyGlobalRun = CallGlobalRun<T>;
+      using MyGlobalRunSummary = CallGlobalRunSummary<T>;
+      using MyGlobalLuminosityBlock = CallGlobalLuminosityBlock<T>;
+      using MyGlobalLuminosityBlockSummary = CallGlobalLuminosityBlockSummary<T>;
 
       void setupStreamModules() final {
         this->createStreamModules([this]() -> EDAnalyzerBase* {
@@ -89,6 +94,7 @@ namespace edm {
         m_lumiSummaries.resize(iNLumis);
       }
 
+      void doBeginJob() final { MyGlobal::beginJob(m_global.get()); }
       void doEndJob() final { MyGlobal::endJob(m_global.get()); }
       void setupRun(EDAnalyzerBase* iProd, RunIndex iIndex) final { MyGlobalRun::set(iProd, m_runs[iIndex].get()); }
       void streamEndRunSummary(EDAnalyzerBase* iProd, edm::Run const& iRun, edm::EventSetup const& iES) final {
@@ -108,6 +114,33 @@ namespace edm {
         MyGlobalLuminosityBlockSummary::streamEndLuminosityBlockSummary(iProd, iLumi, iES, s);
       }
 
+      void doBeginProcessBlock(ProcessBlockPrincipal const& pbp, ModuleCallingContext const* mcc) final {
+        if constexpr (T::HasAbility::kWatchProcessBlock) {
+          ProcessBlock processBlock(pbp, moduleDescription(), mcc, false);
+          processBlock.setConsumer(consumer());
+          ProcessBlock const& cnstProcessBlock = processBlock;
+          MyWatchProcessBlock::beginProcessBlock(cnstProcessBlock, m_global.get());
+        }
+      }
+
+      void doAccessInputProcessBlock(ProcessBlockPrincipal const& pbp, ModuleCallingContext const* mcc) final {
+        if constexpr (T::HasAbility::kInputProcessBlockCache) {
+          ProcessBlock processBlock(pbp, moduleDescription(), mcc, false);
+          processBlock.setConsumer(consumer());
+          ProcessBlock const& cnstProcessBlock = processBlock;
+          MyInputProcessBlock::accessInputProcessBlock(cnstProcessBlock, m_global.get());
+        }
+      }
+
+      void doEndProcessBlock(ProcessBlockPrincipal const& pbp, ModuleCallingContext const* mcc) final {
+        if constexpr (T::HasAbility::kWatchProcessBlock) {
+          ProcessBlock processBlock(pbp, moduleDescription(), mcc, true);
+          processBlock.setConsumer(consumer());
+          ProcessBlock const& cnstProcessBlock = processBlock;
+          MyWatchProcessBlock::endProcessBlock(cnstProcessBlock, m_global.get());
+        }
+      }
+
       void doBeginRun(RunPrincipal const& rp, EventSetupImpl const& ci, ModuleCallingContext const* mcc) final {
         if constexpr (T::HasAbility::kRunCache or T::HasAbility::kRunSummaryCache) {
           Run r(rp, moduleDescription(), mcc, false);
@@ -116,7 +149,8 @@ namespace edm {
           RunIndex ri = rp.index();
           const EventSetup c{ci,
                              static_cast<unsigned int>(Transition::BeginRun),
-                             this->consumer()->esGetTokenIndices(Transition::BeginRun)};
+                             this->consumer()->esGetTokenIndices(Transition::BeginRun),
+                             false};
           MyGlobalRun::beginRun(cnstR, c, m_global.get(), m_runs[ri]);
           typename T::RunContext rc(m_runs[ri].get(), m_global.get());
           MyGlobalRunSummary::beginRun(cnstR, c, &rc, m_runSummaries[ri]);
@@ -131,7 +165,8 @@ namespace edm {
           typename T::RunContext rc(m_runs[ri].get(), m_global.get());
           const EventSetup c{ci,
                              static_cast<unsigned int>(Transition::EndRun),
-                             this->consumer()->esGetTokenIndices(Transition::EndRun)};
+                             this->consumer()->esGetTokenIndices(Transition::EndRun),
+                             false};
           MyGlobalRunSummary::globalEndRun(r, c, &rc, m_runSummaries[ri].get());
           MyGlobalRun::endRun(r, c, &rc);
         }
@@ -149,7 +184,8 @@ namespace edm {
           typename T::RunContext rc(m_runs[ri].get(), m_global.get());
           const EventSetup c{ci,
                              static_cast<unsigned int>(Transition::BeginLuminosityBlock),
-                             this->consumer()->esGetTokenIndices(Transition::BeginLuminosityBlock)};
+                             this->consumer()->esGetTokenIndices(Transition::BeginLuminosityBlock),
+                             false};
           MyGlobalLuminosityBlock::beginLuminosityBlock(cnstLb, c, &rc, m_lumis[li]);
           typename T::LuminosityBlockContext lc(m_lumis[li].get(), m_runs[ri].get(), m_global.get());
           MyGlobalLuminosityBlockSummary::beginLuminosityBlock(cnstLb, c, &lc, m_lumiSummaries[li]);
@@ -167,7 +203,8 @@ namespace edm {
           typename T::LuminosityBlockContext lc(m_lumis[li].get(), m_runs[ri].get(), m_global.get());
           const EventSetup c{ci,
                              static_cast<unsigned int>(Transition::EndLuminosityBlock),
-                             this->consumer()->esGetTokenIndices(Transition::EndLuminosityBlock)};
+                             this->consumer()->esGetTokenIndices(Transition::EndLuminosityBlock),
+                             false};
           MyGlobalLuminosityBlockSummary::globalEndLuminosityBlock(lb, c, &lc, m_lumiSummaries[li].get());
           MyGlobalLuminosityBlock::endLuminosityBlock(lb, c, &lc);
         }

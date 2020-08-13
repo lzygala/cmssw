@@ -2,7 +2,6 @@ import FWCore.ParameterSet.Config as cms
 
 MicroEventContent = cms.PSet(
     outputCommands = cms.untracked.vstring(
-        'drop *',
         'keep *_slimmedPhotons_*_*',
         'keep *_slimmedOOTPhotons_*_*',
         'keep *_slimmedElectrons_*_*',
@@ -11,8 +10,8 @@ MicroEventContent = cms.PSet(
         'keep *_slimmedTausBoosted_*_*',
         'keep *_slimmedCaloJets_*_*',
         'keep *_slimmedJets_*_*',
-        # drop content created by MINIAOD DeepFlavour production
-        'drop recoBaseTagInfosOwned_slimmedJets_*_*',
+        # keep slimmedJets TagInfos, currently only PixelClusterTagInfo
+        'keep recoBaseTagInfosOwned_slimmedJets_*_*',
         'keep *_slimmedJetsAK8_*_*',
         # drop content created by MINIAOD DeepDoubleB production
         'drop recoBaseTagInfosOwned_slimmedJetsAK8_*_*',
@@ -134,6 +133,18 @@ from Configuration.Eras.Modifier_run3_common_cff import run3_common
 run3_common.toModify(MicroEventContent, outputCommands = MicroEventContent.outputCommands + _run3_common_extraCommands)
 # --- 
 
+_pp_on_AA_extraCommands = [
+    'keep patPackedCandidates_hiPixelTracks_*_*',
+    'keep *_packedCandidateMuonID_*_*',
+    'keep floatedmValueMap_packedPFCandidateTrackChi2_*_*',
+    'keep floatedmValueMap_lostTrackChi2_*_*',
+    'keep recoCentrality_hiCentrality_*_*',
+    'keep int_centralityBin_*_*',
+]
+from Configuration.Eras.Modifier_pp_on_AA_2018_cff import pp_on_AA_2018
+from Configuration.Eras.Modifier_pp_on_PbPb_run3_cff import pp_on_PbPb_run3
+(pp_on_AA_2018 | pp_on_PbPb_run3).toModify(MicroEventContent, outputCommands = MicroEventContent.outputCommands + _pp_on_AA_extraCommands)
+
 MicroEventContentMC = cms.PSet(
     outputCommands = cms.untracked.vstring(MicroEventContent.outputCommands)
 )
@@ -144,6 +155,10 @@ MicroEventContentMC.outputCommands += [
                                         'keep L1GtTriggerMenuLite_l1GtTriggerMenuLite__*'
                                       ]
 
+from Configuration.Eras.Modifier_strips_vfp30_2016_cff import strips_vfp30_2016
+strips_vfp30_2016.toModify(MicroEventContentMC, outputCommands = MicroEventContentMC.outputCommands + [
+    'keep *_simAPVsaturation_SimulatedAPVDynamicGain_*'
+])
 
 MiniAODOverrideBranchesSplitLevel = cms.untracked.VPSet( [
 cms.untracked.PSet(branch = cms.untracked.string("patPackedCandidates_packedPFCandidates__*"),splitLevel=cms.untracked.int32(99)),

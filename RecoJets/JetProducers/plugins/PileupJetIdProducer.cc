@@ -18,6 +18,8 @@ Implementation:
 
 #include "RecoJets/JetProducers/plugins/PileupJetIdProducer.h"
 
+#include <memory>
+
 GBRForestsAndConstants::GBRForestsAndConstants(edm::ParameterSet const& iConfig)
     : runMvas_(iConfig.getParameter<bool>("runMvas")),
       produceJetIds_(iConfig.getParameter<bool>("produceJetIds")),
@@ -76,12 +78,7 @@ void PileupJetIdProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSe
   Handle<View<Jet>> jetHandle;
   iEvent.getByToken(input_jet_token_, jetHandle);
   const View<Jet>& jets = *jetHandle;
-  // vertexes
-  Handle<VertexCollection> vertexHandle;
-  if (gc->produceJetIds()) {
-    iEvent.getByToken(input_vertex_token_, vertexHandle);
-  }
-  const VertexCollection& vertexes = *(vertexHandle.product());
+
   // input variables
   Handle<ValueMap<StoredPileupJetIdentifier>> vmap;
   if (!gc->produceJetIds()) {
@@ -96,15 +93,22 @@ void PileupJetIdProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSe
   map<string, vector<float>> mvas;
   map<string, vector<int>> idflags;
 
+  const VertexCollection* vertexes = nullptr;
   VertexCollection::const_iterator vtx;
   if (gc->produceJetIds()) {
+    // vertexes
+    Handle<VertexCollection> vertexHandle;
+    iEvent.getByToken(input_vertex_token_, vertexHandle);
+
+    vertexes = vertexHandle.product();
+
     // require basic quality cuts on the vertexes
-    vtx = vertexes.begin();
-    while (vtx != vertexes.end() && (vtx->isFake() || vtx->ndof() < 4)) {
+    vtx = vertexes->begin();
+    while (vtx != vertexes->end() && (vtx->isFake() || vtx->ndof() < 4)) {
       ++vtx;
     }
-    if (vtx == vertexes.end()) {
-      vtx = vertexes.begin();
+    if (vtx == vertexes->end()) {
+      vtx = vertexes->begin();
     }
   }
 
@@ -151,7 +155,7 @@ void PileupJetIdProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSe
     if (applyJec) {
       float scale = jec;
       if (ispat) {
-        corrJet.reset(new pat::Jet(patjet->correctedJet(0)));
+        corrJet = std::make_unique<pat::Jet>(patjet->correctedJet(0));
       } else {
         corrJet.reset(dynamic_cast<reco::Jet*>(jet.clone()));
       }
@@ -162,7 +166,7 @@ void PileupJetIdProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSe
     PileupJetIdentifier puIdentifier;
     if (gc->produceJetIds()) {
       // Compute the input variables
-      puIdentifier = ialgo->computeIdVariables(theJet, jec, &(*vtx), vertexes, rho, gc->usePuppi());
+      puIdentifier = ialgo->computeIdVariables(theJet, jec, &(*vtx), *vertexes, rho, gc->usePuppi());
       ids.push_back(puIdentifier);
     } else {
       // Or read it from the value map

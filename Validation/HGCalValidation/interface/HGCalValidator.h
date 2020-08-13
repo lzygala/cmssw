@@ -27,11 +27,13 @@
 #include "Validation/HGCalValidation/interface/CaloParticleSelector.h"
 #include "RecoLocalCalo/HGCalRecProducers/interface/HGCalClusteringAlgoBase.h"
 
+#include "SimDataFormats/Associations/interface/LayerClusterToCaloParticleAssociator.h"
+
 class PileupSummaryInfo;
 
 struct HGCalValidatorHistograms {
   HGVHistoProducerAlgoHistograms histoProducerAlgo;
-  std::vector<ConcurrentMonitorElement> h_layerclusters_coll;
+  std::vector<dqm::reco::MonitorElement*> h_layerclusters_coll;
 };
 
 class HGCalValidator : public DQMGlobalEDAnalyzer<HGCalValidatorHistograms> {
@@ -47,7 +49,7 @@ public:
   /// Method called once per event
   void dqmAnalyze(const edm::Event&, const edm::EventSetup&, const Histograms&) const override;
   /// Method called to book the DQM histograms
-  void bookHistograms(DQMStore::ConcurrentBooker&, edm::Run const&, edm::EventSetup const&, Histograms&) const override;
+  void bookHistograms(DQMStore::IBooker&, edm::Run const&, edm::EventSetup const&, Histograms&) const override;
 
   void cpParametersAndSelection(const Histograms& histograms,
                                 std::vector<CaloParticle> const& cPeff,
@@ -55,30 +57,27 @@ public:
                                 std::vector<size_t>& selected_cPeff) const;
 
 protected:
-  std::vector<edm::InputTag> label;
+  edm::InputTag label_lcl;
+  std::vector<edm::InputTag> label_mcl;
   const bool SaveGeneralInfo_;
   const bool doCaloParticlePlots_;
+  const bool doCaloParticleSelection_;
   const bool dolayerclustersPlots_;
   const bool domulticlustersPlots_;
   const edm::FileInPath cummatbudinxo_;
 
   std::vector<edm::EDGetTokenT<reco::CaloClusterCollection>> labelToken;
   edm::EDGetTokenT<reco::CaloClusterCollection> layerclusters_;
-  edm::EDGetTokenT<std::vector<reco::HGCalMultiCluster>> multiClusters_;
+  std::vector<edm::EDGetTokenT<std::vector<reco::HGCalMultiCluster>>> label_mclTokens;
   edm::EDGetTokenT<std::vector<CaloParticle>> label_cp_effic;
   edm::EDGetTokenT<std::vector<CaloParticle>> label_cp_fake;
   edm::EDGetTokenT<std::vector<SimVertex>> simVertices_;
-  edm::EDGetTokenT<HGCRecHitCollection> recHitsEE_;
-  edm::EDGetTokenT<HGCRecHitCollection> recHitsFH_;
-  edm::EDGetTokenT<HGCRecHitCollection> recHitsBH_;
+  edm::EDGetTokenT<std::unordered_map<DetId, const HGCRecHit*>> hitMap_;
   edm::EDGetTokenT<Density> density_;
+  edm::EDGetTokenT<hgcal::LayerClusterToCaloParticleAssociator> LCAssocByEnergyScoreProducer_;
   std::unique_ptr<HGVHistoProducerAlgo> histoProducerAlgo_;
 
 private:
-  void fillHitMap(std::map<DetId, const HGCRecHit*>&,
-                  const HGCRecHitCollection&,
-                  const HGCRecHitCollection&,
-                  const HGCRecHitCollection&) const;
   CaloParticleSelector cpSelector;
   std::shared_ptr<hgcal::RecHitTools> tools_;
   std::map<double, double> cummatbudg;

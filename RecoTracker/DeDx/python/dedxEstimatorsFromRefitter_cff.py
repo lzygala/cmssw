@@ -2,8 +2,9 @@ import FWCore.ParameterSet.Config as cms
 
 from RecoTracker.TrackProducer.TrackRefitter_cfi import *
 
-RefitterForDeDx = TrackRefitter.clone()
-RefitterForDeDx.TrajectoryInEvent = True
+RefitterForDeDx = TrackRefitter.clone(
+    TrajectoryInEvent = True
+)
 
 from RecoTracker.DeDx.dedxEstimators_cff import *
 
@@ -34,4 +35,5 @@ dedxDiscrimSmi.trajectoryTrackAssociation = cms.InputTag("RefitterForDeDx")
 dedxDiscrimASmi.tracks=cms.InputTag("RefitterForDeDx")
 dedxDiscrimASmi.trajectoryTrackAssociation = cms.InputTag("RefitterForDeDx")
 
-doAlldEdXEstimators = cms.Sequence(RefitterForDeDx * (dedxTruncated40 + dedxHarmonic2 + dedxHitInfo) )
+doAlldEdXEstimatorsTask = cms.Task(RefitterForDeDx, dedxTruncated40, dedxHarmonic2, dedxHitInfo )
+doAlldEdXEstimators = cms.Sequence(doAlldEdXEstimatorsTask)

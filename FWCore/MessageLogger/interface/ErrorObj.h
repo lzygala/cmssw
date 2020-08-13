@@ -69,7 +69,7 @@ namespace edm {
     virtual void setID(const ELstring& ID);
     virtual void setModule(const ELstring& module);
     virtual void setSubroutine(const ELstring& subroutine);
-    virtual void setContext(const ELstring& context);
+    virtual void setContext(const std::string_view& context);
 
     // -----  Methods for ErrorLog or for physicists logging errors:
     //
@@ -78,6 +78,8 @@ namespace edm {
     ErrorObj& opltlt(const char s[]);
     inline ErrorObj& operator<<(std::ostream& (*f)(std::ostream&));
     inline ErrorObj& operator<<(std::ios_base& (*f)(std::ios_base&));
+    template <typename... Args>
+    inline ErrorObj& format(std::string_view fmt, Args const&... args);
 
     virtual ErrorObj& emitToken(const ELstring& txt);
 

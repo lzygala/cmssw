@@ -178,7 +178,6 @@ void HcalDigisValidation::booking(DQMStore::IBooker& ib, const std::string bsubd
   // Adjust/Optimize binning (JR Dittmann, 16-JUL-2015)
 
   HistLim Ndigis(2600, 0., 2600.);
-  HistLim ndigis(520, -20., 1020.);
   HistLim sime(200, 0., 1.0);
 
   HistLim digiAmp(360, -100., 7100.);
@@ -203,6 +202,10 @@ void HcalDigisValidation::booking(DQMStore::IBooker& ib, const std::string bsubd
   HistLim iphiLim(74, -0.5, 73.5);
 
   HistLim depthLim(15, -0.5, 14.5);
+
+  //...TDC
+  HistLim tdcLim(250, 0., 250.);
+  HistLim adcLim(256, 0., 256.);
 
   if (bsubdet == "HB") {
     Ndigis = HistLim(((int)(nChannels_[1] / 100) + 1) * 100, 0., (float)((int)(nChannels_[1] / 100) + 1) * 100);
@@ -264,7 +267,7 @@ void HcalDigisValidation::booking(DQMStore::IBooker& ib, const std::string bsubd
       book1D(ib, histo, digiAmp);
 
     sprintf(histo, "HcalDigiTask_number_of_amplitudes_above_10fC_%s", sub);
-    book1D(ib, histo, ndigis);
+    book1D(ib, histo, Ndigis);
 
     for (int depth = 1; depth <= maxDepth_[isubdet]; depth++) {
       sprintf(histo, "HcalDigiTask_ADC0_adc_depth%d_%s", depth, sub);
@@ -344,6 +347,16 @@ void HcalDigisValidation::booking(DQMStore::IBooker& ib, const std::string bsubd
         sprintf(histo, "HcalDigiTask_ratio_amplitude_vs_simhits_depth%d_%s", depth, sub);
         book1D(ib, histo, ratio);
       }
+
+      //...TDC
+      if (bsubdet == "HB" || bsubdet == "HE") {
+        sprintf(histo, "HcalDigiTask_TDCtime_%s", sub);
+        book1D(ib, histo, tdcLim);
+
+        sprintf(histo, "HcalDigiTask_TDCtime_vs_ADC_%s", sub);
+        book2D(ib, histo, adcLim, tdcLim);
+      }
+
     }  //mc only
 
   } else {  // noise only
@@ -1140,6 +1153,22 @@ void HcalDigisValidation::reco(const edm::Event& iEvent,
             v_ampl_c[depth] += val;
           }
         }
+
+        //...TDC
+
+        if ((HBPhase1_ && sub == 1) || (HEPhase1_ && sub == 2)) {
+          double digiADC = (dataFrame)[ii].adc();
+          const QIE11DataFrame dataFrameHBHE = static_cast<const QIE11DataFrame>(*digiItr);
+          double digiTDC = (dataFrameHBHE)[ii].tdc();
+          if (digiTDC < 50) {
+            double time = ii * 25. + (digiTDC * 0.5);
+            strtmp = "HcalDigiTask_TDCtime_" + subdet_;
+            fill1D(strtmp, time);
+
+            strtmp = "HcalDigiTask_TDCtime_vs_ADC_" + subdet_;
+            fill2D(strtmp, digiADC, time);
+          }
+        }
       }
       // end of time bucket sample
 
@@ -1311,7 +1340,7 @@ void HcalDigisValidation::bookPf(
 
 void HcalDigisValidation::fillPf(std::string name, double X, double Y) { msm_->find(name)->second->Fill(X, Y); }
 
-MonitorElement* HcalDigisValidation::monitor(std::string name) {
+HcalDigisValidation::MonitorElement* HcalDigisValidation::monitor(std::string name) {
   if (!msm_->count(name))
     return nullptr;
   else

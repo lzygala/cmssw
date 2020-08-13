@@ -21,6 +21,8 @@
 #include "Geometry/HGCalGeometry/interface/HGCalGeometry.h"
 #include "Geometry/HcalTowerAlgo/interface/HcalGeometry.h"
 
+#include "SimCalorimetry/HGCalSimAlgos/interface/HGCalSiNoiseMap.h"
+
 namespace hgc = hgc_digi;
 
 namespace hgc_digi_utils {
@@ -40,7 +42,7 @@ namespace hgc_digi_utils {
                        : false);
     //base time samples for each DetId, initialized to 0
     info.size = (isHalf ? 0.5 : 1.0);
-    info.thickness = dddConst.waferType(detid);
+    info.thickness = 1 + dddConst.waferType(detid);
   }
 
   inline void addCellMetadata(HGCCellInfo& info, const CaloSubdetectorGeometry* geom, const DetId& detid) {
@@ -66,6 +68,10 @@ public:
      @short CTOR
   */
   HGCDigitizerBase(const edm::ParameterSet& ps);
+  /**
+     @short Gaussian Noise Generation Member Function
+  */
+  void GenerateGaussianNoise(CLHEP::HepRandomEngine* engine, const double NoiseMean, const double NoiseStd);
   /**
     @short steer digitization mode
  */
@@ -122,11 +128,23 @@ protected:
   //1keV in fC
   float keV2fC_;
 
-  //noise level
+  //noise level (used if scaleByDose=False)
   std::vector<float> noise_fC_;
 
-  //charge collection efficiency
+  //charge collection efficiency (used if scaleByDose=False)
   std::vector<double> cce_;
+
+  //determines if the dose map should be used instead
+  bool scaleByDose_;
+
+  //multiplicative fator to scale fluence map
+  double scaleByDoseFactor_;
+
+  //path to dose map
+  std::string doseMapFile_;
+
+  //noise maps (used if scaleByDose=True)
+  HGCalSiNoiseMap scal_;
 
   //front-end electronics model
   std::unique_ptr<HGCFEElectronics<DFr> > myFEelectronics_;
@@ -136,6 +154,19 @@ protected:
 
   //if true will put both in time and out-of-time samples in the event
   bool doTimeSamples_;
+
+  //if set to true, threshold will be computed based on the expected meap peak/2
+  bool thresholdFollowsMIP_;
+
+  // New NoiseArray Parameters
+
+  const double NoiseMean_, NoiseStd_;
+  static const size_t NoiseArrayLength_ = 200000;
+  static const size_t samplesize_ = 15;
+  std::array<std::array<double, samplesize_>, NoiseArrayLength_> GaussianNoiseArray_;
+  bool RandNoiseGenerationFlag_;
+  // A parameter configurable from python configuration to decide which noise generation model to use
+  bool NoiseGeneration_Method_;
 };
 
 #endif

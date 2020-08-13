@@ -6,6 +6,7 @@
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
+#include "FWCore/Utilities/interface/ESGetToken.h"
 
 #include "EventFilter/HcalRawToDigi/interface/HcalUHTRData.h"
 #include "DataFormats/HcalDigi/interface/HcalQIESample.h"
@@ -25,8 +26,10 @@
 
 #include "PackerHelp.h"
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <memory>
+
 #include <sstream>
 #include <string>
 
@@ -48,6 +51,10 @@ public:
 
 private:
   int _verbosity;
+  int tdc1_;
+  int tdc2_;
+  bool packHBTDC_;
+  static constexpr int tdcmax_ = 49;
   std::string electronicsMapLabel_;
 
   edm::EDGetTokenT<HcalDataFrameContainer<QIE10DataFrame> > tok_QIE10DigiCollection_;
@@ -55,12 +62,16 @@ private:
   edm::EDGetTokenT<HBHEDigiCollection> tok_HBHEDigiCollection_;
   edm::EDGetTokenT<HFDigiCollection> tok_HFDigiCollection_;
   edm::EDGetTokenT<HcalTrigPrimDigiCollection> tok_TPDigiCollection_;
+  edm::ESGetToken<HcalElectronicsMap, HcalElectronicsMapRcd> tok_electronicsMap_;
 
   bool premix_;
 };
 
 HcalDigiToRawuHTR::HcalDigiToRawuHTR(const edm::ParameterSet& iConfig)
     : _verbosity(iConfig.getUntrackedParameter<int>("Verbosity", 0)),
+      tdc1_(iConfig.getParameter<int>("tdc1")),
+      tdc2_(iConfig.getParameter<int>("tdc2")),
+      packHBTDC_(iConfig.getParameter<bool>("packHBTDC")),
       electronicsMapLabel_(iConfig.getParameter<std::string>("ElectronicsMap")),
       tok_QIE10DigiCollection_(
           consumes<HcalDataFrameContainer<QIE10DataFrame> >(iConfig.getParameter<edm::InputTag>("QIE10"))),
@@ -69,8 +80,12 @@ HcalDigiToRawuHTR::HcalDigiToRawuHTR(const edm::ParameterSet& iConfig)
       tok_HBHEDigiCollection_(consumes<HBHEDigiCollection>(iConfig.getParameter<edm::InputTag>("HBHEqie8"))),
       tok_HFDigiCollection_(consumes<HFDigiCollection>(iConfig.getParameter<edm::InputTag>("HFqie8"))),
       tok_TPDigiCollection_(consumes<HcalTrigPrimDigiCollection>(iConfig.getParameter<edm::InputTag>("TP"))),
+      tok_electronicsMap_(
+          esConsumes<HcalElectronicsMap, HcalElectronicsMapRcd>(edm::ESInputTag("", electronicsMapLabel_))),
       premix_(iConfig.getParameter<bool>("premix")) {
   produces<FEDRawDataCollection>("");
+  if (!(tdc1_ >= 0 && tdc1_ <= tdc2_ && tdc2_ <= tdcmax_))
+    edm::LogWarning("HcalDigiToRawuHTR") << " incorrect TDC ranges " << tdc1_ << ", " << tdc2_ << ", " << tdcmax_;
 }
 
 HcalDigiToRawuHTR::~HcalDigiToRawuHTR() {}
@@ -78,8 +93,7 @@ HcalDigiToRawuHTR::~HcalDigiToRawuHTR() {}
 void HcalDigiToRawuHTR::produce(edm::StreamID id, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   using namespace edm;
 
-  edm::ESHandle<HcalElectronicsMap> item;
-  iSetup.get<HcalElectronicsMapRcd>().get(electronicsMapLabel_, item);
+  edm::ESHandle<HcalElectronicsMap> item = iSetup.getHandle(tok_electronicsMap_);
   const HcalElectronicsMap* readoutMap = item.product();
 
   //collection to be inserted into event
@@ -118,7 +132,7 @@ void HcalDigiToRawuHTR::produce(edm::StreamID id, edm::Event& iEvent, const edm:
       int presamples = qiedf.presamples();
 
       /* Defining a custom index that will encode only
-	 the information about the crate and slot of a 
+	 the information about the crate and slot of a
 	 given channel:   crate: bits 0-7
 	 slot:  bits 8-12 */
 
@@ -143,6 +157,10 @@ void HcalDigiToRawuHTR::produce(edm::StreamID id, edm::Event& iEvent, const edm:
       int slotId = eid.slot();
       int uhtrIndex = ((slotId & 0xF) << 8) | (crateId & 0xFF);
       int presamples = qiedf.presamples();
+
+      //   convert to hb qie data if hb
+      if (packHBTDC_ && HcalDetId(detid.rawId()).subdet() == HcalSubdetector::HcalBarrel)
+        qiedf = convertHB(qiedf, tdc1_, tdc2_, tdcmax_);
 
       if (!uhtrs.exist(uhtrIndex)) {
         uhtrs.newUHTR(uhtrIndex, presamples);
@@ -233,8 +251,8 @@ void HcalDigiToRawuHTR::produce(edm::StreamID id, edm::Event& iEvent, const edm:
     int fedId = FEDNumbering::MINHCALuTCAFEDID + crateId;
     if (fedMap.find(fedId) == fedMap.end()) {
       /* QUESTION: where should the orbit number come from? */
-      fedMap[fedId] = std::unique_ptr<HCalFED>(
-          new HCalFED(fedId, iEvent.id().event(), iEvent.orbitNumber(), iEvent.bunchCrossing()));
+      fedMap[fedId] =
+          std::make_unique<HCalFED>(fedId, iEvent.id().event(), iEvent.orbitNumber(), iEvent.bunchCrossing());
     }
     fedMap[fedId]->addUHTR(uhtr->second, crateId, slotId);
   }  // end loop over uhtr containers
@@ -270,6 +288,9 @@ void HcalDigiToRawuHTR::fillDescriptions(edm::ConfigurationDescriptions& descrip
   // Please change this to state exactly what you do use, even if it is no parameters
   edm::ParameterSetDescription desc;
   desc.addUntracked<int>("Verbosity", 0);
+  desc.add<int>("tdc1", 4);
+  desc.add<int>("tdc2", 20);
+  desc.add<bool>("packHBTDC", false);
   desc.add<std::string>("ElectronicsMap", "");
   desc.add<edm::InputTag>("QIE10", edm::InputTag("simHcalDigis", "HFQIE10DigiCollection"));
   desc.add<edm::InputTag>("QIE11", edm::InputTag("simHcalDigis", "HBHEQIE11DigiCollection"));

@@ -7,9 +7,9 @@
  *
  */
 
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 
-#include "DQMServices/Core/interface/MonitorElement.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include "DataFormats/EcalDigi/interface/EcalDigiCollections.h"
 #include "SimDataFormats/CaloHit/interface/PCaloHit.h"
@@ -31,7 +31,7 @@ class EEDetId;
 class EcalElectronicsMapping;
 class EcalTrigTowerConstituentsMap;
 
-class EcalSelectiveReadoutValidation : public DQMEDAnalyzer {
+class EcalSelectiveReadoutValidation : public DQMOneEDAnalyzer<> {
   typedef EcalRecHitCollection RecHitCollection;
   typedef EcalRecHit RecHit;
 
@@ -48,7 +48,7 @@ protected:
   /// Analyzes the event.
   void analyze(edm::Event const& e, edm::EventSetup const& c) override;
 
-  void endRun(const edm::Run& r, const edm::EventSetup& c) override;
+  void dqmEndRun(const edm::Run& r, const edm::EventSetup& c) override;
 
 private:
   ///distinguishes barral and endcap of ECAL.

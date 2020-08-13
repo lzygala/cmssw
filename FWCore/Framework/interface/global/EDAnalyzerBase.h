@@ -62,6 +62,8 @@ namespace edm {
       // Warning: the returned moduleDescription will be invalid during construction
       ModuleDescription const& moduleDescription() const { return moduleDescription_; }
 
+      virtual bool wantsProcessBlocks() const = 0;
+      virtual bool wantsInputProcessBlocks() const = 0;
       virtual bool wantsGlobalRuns() const = 0;
       virtual bool wantsGlobalLuminosityBlocks() const = 0;
       virtual bool wantsStreamRuns() const = 0;
@@ -95,6 +97,9 @@ namespace edm {
                                       EventSetupImpl const& c,
                                       ModuleCallingContext const*);
 
+      void doBeginProcessBlock(ProcessBlockPrincipal const&, ModuleCallingContext const*);
+      void doAccessInputProcessBlock(ProcessBlockPrincipal const&, ModuleCallingContext const*);
+      void doEndProcessBlock(ProcessBlockPrincipal const&, ModuleCallingContext const*);
       void doBeginRun(RunPrincipal const& rp, EventSetupImpl const& c, ModuleCallingContext const*);
       void doEndRun(RunPrincipal const& rp, EventSetupImpl const& c, ModuleCallingContext const*);
       void doBeginLuminosityBlock(LuminosityBlockPrincipal const& lbp,
@@ -118,6 +123,7 @@ namespace edm {
 
       virtual void preallocStreams(unsigned int);
       virtual void preallocLumis(unsigned int);
+      virtual void preallocLumisSummary(unsigned int);
       virtual void preallocate(PreallocationConfiguration const&);
       virtual void doBeginStream_(StreamID id);
       virtual void doEndStream_(StreamID id);
@@ -128,6 +134,9 @@ namespace edm {
       virtual void doStreamEndLuminosityBlock_(StreamID id, LuminosityBlock const& lbp, EventSetup const& c);
       virtual void doStreamEndLuminosityBlockSummary_(StreamID id, LuminosityBlock const& lbp, EventSetup const& c);
 
+      virtual void doBeginProcessBlock_(ProcessBlock const&);
+      virtual void doAccessInputProcessBlock_(ProcessBlock const&);
+      virtual void doEndProcessBlock_(ProcessBlock const&);
       virtual void doBeginRun_(Run const& rp, EventSetup const& c);
       virtual void doBeginRunSummary_(Run const& rp, EventSetup const& c);
       virtual void doEndRunSummary_(Run const& rp, EventSetup const& c);

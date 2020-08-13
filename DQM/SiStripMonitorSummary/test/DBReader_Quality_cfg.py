@@ -90,14 +90,14 @@ process.MessageLogger = cms.Service("MessageLogger",
                                     destinations = cms.untracked.vstring('cout')
                                     )
 
-process.qTester = cms.EDAnalyzer("QualityTester",
+from DQMServices.Core.DQMQualityTester import DQMQualityTester
+process.qTester = DQMQualityTester(
                                qtList = cms.untracked.FileInPath('DQM/SiStripMonitorSummary/data/CondDBQtests.xml'),
                                QualityTestPrescaler = cms.untracked.int32(1),
                                getQualityTestsFromFile = cms.untracked.bool(True)
                                )
 
 process.DQMStore = cms.Service("DQMStore",
-                               referenceFileName = cms.untracked.string(''),
                                verbose = cms.untracked.int32(1)
                                )
 

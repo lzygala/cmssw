@@ -10,6 +10,7 @@ from . import configTemplates
 from .dataset import Dataset
 from .helperFunctions import replaceByMap, addIndex, getCommandOutput2, boolfromstring, pythonboolstring
 from .TkAlExceptions import AllInOneError
+from six import with_metaclass
 
 class ValidationMetaClass(ABCMeta):
     sets = ["mandatories", "optionals", "needpackages"]
@@ -38,8 +39,7 @@ class ValidationMetaClass(ABCMeta):
 
         return super(ValidationMetaClass, cls).__new__(cls, clsname, bases, dct)
 
-class GenericValidation(object):
-    __metaclass__ = ValidationMetaClass
+class GenericValidation(with_metaclass(ValidationMetaClass,object)):
     defaultReferenceName = "DEFAULT"
     mandatories = set()
     defaults = {
@@ -599,7 +599,7 @@ class ParallelValidation(GenericValidation):
 class ValidationWithPlots(GenericValidation):
     @classmethod
     def runPlots(cls, validations):
-        return ("rfcp .oO[plottingscriptpath]Oo. .\n"
+        return ("cp .oO[plottingscriptpath]Oo. .\n"
                 "root -x -b -q .oO[plottingscriptname]Oo.++")
     @abstractmethod
     def appendToPlots(self):

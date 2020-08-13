@@ -25,15 +25,14 @@ HGCalGeometry* HGCalGeometryLoader::build(const HGCalTopology& topology) {
   HGCalGeometry* geom = new HGCalGeometry(topology);
   unsigned int numberOfCells = topology.totalGeomModules();  // both sides
   unsigned int numberExpected = topology.allGeomModules();
-  HGCalGeometryMode::GeometryMode mode = topology.geomMode();
-  parametersPerShape_ = ((mode == HGCalGeometryMode::Trapezoid) ? (int)HGCalGeometry::k_NumberOfParametersPerTrd
-                                                                : (int)HGCalGeometry::k_NumberOfParametersPerHex);
+  parametersPerShape_ = (topology.tileTrapezoid() ? (int)HGCalGeometry::k_NumberOfParametersPerTrd
+                                                  : (int)HGCalGeometry::k_NumberOfParametersPerHex);
   uint32_t numberOfShapes =
-      ((mode == HGCalGeometryMode::Trapezoid) ? HGCalGeometry::k_NumberOfShapesTrd : HGCalGeometry::k_NumberOfShapes);
+      (topology.tileTrapezoid() ? HGCalGeometry::k_NumberOfShapesTrd : HGCalGeometry::k_NumberOfShapes);
 #ifdef EDM_ML_DEBUG
   edm::LogVerbatim("HGCalGeom") << "Number of Cells " << numberOfCells << ":" << numberExpected << " for sub-detector "
                                 << topology.subDetector() << " Shapes " << numberOfShapes << ":" << parametersPerShape_
-                                << " mode " << mode;
+                                << " mode " << topology.geomMode();
 #endif
   geom->allocateCorners(numberOfCells);
   geom->allocatePar(numberOfShapes, parametersPerShape_);
@@ -55,7 +54,7 @@ HGCalGeometry* HGCalGeometryLoader::build(const HGCalTopology& topology) {
     unsigned int kount(0);
     edm::LogVerbatim("HGCalGeom") << "HGCalGeometryLoader:: Z:Layer " << zside << ":" << layer << " z " << mytr.h3v.z();
 #endif
-    if ((mode == HGCalGeometryMode::Hexagon) || (mode == HGCalGeometryMode::HexagonFull)) {
+    if (topology.waferHexagon6()) {
       ForwardSubdetector subdet = topology.subDetector();
       for (int wafer = 0; wafer < topology.dddConstants().sectors(); ++wafer) {
         std::string code[2] = {"False", "True"};
@@ -85,7 +84,7 @@ HGCalGeometry* HGCalGeometryLoader::build(const HGCalTopology& topology) {
 #endif
         }
       }
-    } else if (mode == HGCalGeometryMode::Trapezoid) {
+    } else if (topology.tileTrapezoid()) {
       int indx = topology.dddConstants().layerIndex(layer, true);
       int irad = topology.dddConstants().getParameter()->iradMinBH_[indx];
       int nphi = topology.dddConstants().getParameter()->scintCells(layer);
@@ -132,7 +131,7 @@ HGCalGeometry* HGCalGeometryLoader::build(const HGCalTopology& topology) {
           int type = topology.dddConstants().getTypeHex(layer, u, v);
           DetId detId = (topology.isHFNose() ? (DetId)(HFNoseDetId(zside, type, layer, u, v, 0, 0))
                                              : (DetId)(HGCSiliconDetId(det, zside, type, layer, u, v, 0, 0)));
-          const auto& w = topology.dddConstants().waferPosition(u, v, true);
+          const auto& w = topology.dddConstants().waferPosition(layer, u, v, true);
           double xx = (zside > 0) ? w.first : -w.first;
           CLHEP::Hep3Vector h3v(xx, w.second, mytr.h3v.z());
           const HepGeom::Transform3D ht3d(mytr.hr, h3v);

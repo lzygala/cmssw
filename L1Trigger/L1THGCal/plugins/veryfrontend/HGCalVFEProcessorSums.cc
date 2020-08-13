@@ -28,9 +28,16 @@ void HGCalVFEProcessorSums::run(const HGCalDigiCollection& digiColl,
   for (const auto& digiData : digiColl) {
     if (DetId(digiData.id()).det() == DetId::Hcal && HcalDetId(digiData.id()).subdetId() != HcalEndcap)
       continue;
-    uint32_t module = geometry_->getModuleFromCell(digiData.id());
-    if (geometry_->disconnectedModule(module))
+    if (!geometry_->validCell(digiData.id()))
       continue;
+    uint32_t module = geometry_->getModuleFromCell(digiData.id());
+
+    // no disconnected layer for HFNose
+    if (DetId(digiData.id()).subdetId() != ForwardSubdetector::HFNose) {
+      if (geometry_->disconnectedModule(module))
+        continue;
+    }
+
     dataframes.emplace_back(digiData.id());
     for (int i = 0; i < digiData.size(); i++) {
       dataframes.back().setSample(i, digiData.sample(i));

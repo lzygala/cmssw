@@ -23,7 +23,6 @@ namespace cond {
                           std::string& objectType,
                           cond::SynchronizationType& synchronizationType,
                           cond::Time_t& endOfValidity,
-                          std::string& description,
                           cond::Time_t& lastValidatedTime) = 0;
       virtual bool getMetadata(const std::string& name,
                                std::string& description,
@@ -40,9 +39,11 @@ namespace cond {
       virtual void update(const std::string& name,
                           cond::SynchronizationType synchronizationType,
                           cond::Time_t& endOfValidity,
-                          const std::string& description,
                           cond::Time_t lastValidatedTime,
                           const boost::posix_time::ptime& updateTime) = 0;
+      virtual void updateMetadata(const std::string& name,
+                                  const std::string& description,
+                                  const boost::posix_time::ptime& updateTime) = 0;
       virtual void updateValidity(const std::string& name,
                                   cond::Time_t lastValidatedTime,
                                   const boost::posix_time::ptime& updateTime) = 0;
@@ -96,6 +97,9 @@ namespace cond {
       virtual void insertMany(
           const std::string& tag,
           const std::vector<std::tuple<cond::Time_t, cond::Hash, boost::posix_time::ptime> >& iovs) = 0;
+      virtual void eraseOne(const std::string& tag, cond::Time_t since, cond::Hash payloadId) = 0;
+      virtual void eraseMany(const std::string& tag,
+                             const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) = 0;
       virtual void erase(const std::string& tag) = 0;
     };
 
@@ -215,7 +219,7 @@ namespace cond {
       virtual bool exists() = 0;
       virtual void create() = 0;
       virtual bool select(cond::Time_t runNumber, boost::posix_time::ptime& start, boost::posix_time::ptime& end) = 0;
-      virtual cond::Time_t getLastInserted() = 0;
+      virtual cond::Time_t getLastInserted(boost::posix_time::ptime& start, boost::posix_time::ptime& end) = 0;
       virtual bool getInclusiveRunRange(
           cond::Time_t lower,
           cond::Time_t upper,

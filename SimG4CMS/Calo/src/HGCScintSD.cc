@@ -9,11 +9,6 @@
 #include "SimG4CMS/Calo/interface/HGCScintSD.h"
 #include "SimG4Core/Notification/interface/TrackInformation.h"
 #include "SimDataFormats/CaloTest/interface/HGCalTestNumbering.h"
-#include "DetectorDescription/Core/interface/DDFilter.h"
-#include "DetectorDescription/Core/interface/DDFilteredView.h"
-#include "DetectorDescription/Core/interface/DDLogicalPart.h"
-#include "DetectorDescription/Core/interface/DDMaterial.h"
-#include "DetectorDescription/Core/interface/DDValue.h"
 #include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -28,9 +23,10 @@
 #include "G4VProcess.hh"
 #include "G4Trap.hh"
 
-#include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
+#include <memory>
 
 //#define EDM_ML_DEBUG
 
@@ -198,7 +194,7 @@ void HGCScintSD::update(const BeginOfJob* job) {
                                << " top Level " << levelT1_ << ":" << levelT2_;
 #endif
 
-    numberingScheme_.reset(new HGCalNumberingScheme(*hgcons_, mydet_, nameX_));
+    numberingScheme_ = std::make_unique<HGCalNumberingScheme>(*hgcons_, mydet_, nameX_);
   } else {
     throw cms::Exception("Unknown", "HGCScintSD") << "Cannot find HGCalDDDConstants for " << nameX_ << "\n";
   }

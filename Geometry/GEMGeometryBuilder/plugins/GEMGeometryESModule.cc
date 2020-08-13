@@ -1,16 +1,23 @@
-/** \file
- *
- *  \author M. Maggi - INFN Bari
- */
+/*
+//\class GEMGeometryESModule
 
-#include "Geometry/GEMGeometryBuilder/src/GEMGeometryBuilderFromDDD.h"
+ Description: GEM Geometry ES Module from DD & DD4HEP
+              DD4hep part added to the original old file (DD version) made by M. Maggi (INFN Bari)
+//
+// Author:  Sergio Lo Meo (sergio.lo.meo@cern.ch) following what Ianna Osburne made for DTs (DD4HEP migration)
+//          Created:  27 Jan 2020 
+*/
+#include "Geometry/GEMGeometryBuilder/src/GEMGeometryBuilder.h"
 #include "Geometry/GEMGeometryBuilder/src/GEMGeometryBuilderFromCondDB.h"
+#include "Geometry/GEMGeometry/interface/GEMGeometry.h"
 
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
-#include "Geometry/MuonNumbering/interface/MuonDDDConstants.h"
-#include "DetectorDescription/Core/interface/DDCompactView.h"
-
+#include "Geometry/Records/interface/MuonGeometryRecord.h"
 #include "Geometry/Records/interface/GEMRecoGeometryRcd.h"
+#include "Geometry/MuonNumbering/interface/MuonGeometryConstants.h"
+#include "DetectorDescription/Core/interface/DDCompactView.h"
+#include "DetectorDescription/DDCMS/interface/DDCompactView.h"
+
 #include "CondFormats/GeometryObjects/interface/RecoIdealGeometry.h"
 
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -19,9 +26,7 @@
 #include "FWCore/Framework/interface/ModuleFactory.h"
 #include "FWCore/Framework/interface/ESProducer.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-
-#include "Geometry/Records/interface/MuonGeometryRecord.h"
-#include "Geometry/GEMGeometry/interface/GEMGeometry.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 
 // Alignments
 #include "CondFormats/Alignment/interface/DetectorGlobalPosition.h"
@@ -33,26 +38,26 @@
 
 #include <memory>
 
-using namespace edm;
-
 class GEMGeometryESModule : public edm::ESProducer {
 public:
   /// Constructor
   GEMGeometryESModule(const edm::ParameterSet& p);
 
-  /// Destructor
-  ~GEMGeometryESModule() override;
+  /// Define the cfi file
+  static void fillDescriptions(edm::ConfigurationDescriptions&);
 
   /// Produce GEMGeometry.
   std::unique_ptr<GEMGeometry> produce(const MuonGeometryRecord& record);
 
 private:
   // use the DDD as Geometry source
-  bool useDDD_;
+  const bool fromDDD_;
+  const bool fromDD4hep_;
   bool applyAlignment_;
   const std::string alignmentsLabel_;
   edm::ESGetToken<DDCompactView, IdealGeometryRecord> cpvToken_;
-  edm::ESGetToken<MuonDDDConstants, MuonNumberingRecord> mdcToken_;
+  edm::ESGetToken<MuonGeometryConstants, IdealGeometryRecord> mdcToken_;
+  edm::ESGetToken<cms::DDCompactView, IdealGeometryRecord> dd4hepcpvToken_;
   edm::ESGetToken<RecoIdealGeometry, GEMRecoGeometryRcd> riggemToken_;
   edm::ESGetToken<Alignments, GlobalPositionRcd> globalPositionToken_;
   edm::ESGetToken<Alignments, GEMAlignmentRcd> alignmentsToken_;
@@ -60,12 +65,15 @@ private:
 };
 
 GEMGeometryESModule::GEMGeometryESModule(const edm::ParameterSet& p)
-    : useDDD_(p.getParameter<bool>("useDDD")),
+    : fromDDD_{p.getParameter<bool>("fromDDD")},
+      fromDD4hep_{p.getParameter<bool>("fromDD4Hep")},
       applyAlignment_(p.getParameter<bool>("applyAlignment")),
       alignmentsLabel_(p.getParameter<std::string>("alignmentsLabel")) {
   auto cc = setWhatProduced(this);
-  if (useDDD_) {
+  if (fromDDD_) {
     cc.setConsumes(cpvToken_).setConsumes(mdcToken_);
+  } else if (fromDD4hep_) {
+    cc.setConsumes(dd4hepcpvToken_).setConsumes(mdcToken_);
   } else {
     cc.setConsumes(riggemToken_);
   }
@@ -76,15 +84,27 @@ GEMGeometryESModule::GEMGeometryESModule(const edm::ParameterSet& p)
   }
 }
 
-GEMGeometryESModule::~GEMGeometryESModule() {}
+void GEMGeometryESModule::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  edm::ParameterSetDescription desc;
+  desc.add<bool>("fromDDD", true);
+  desc.add<bool>("fromDD4Hep", false);
+  desc.add<bool>("applyAlignment", false);
+  desc.add<std::string>("alignmentsLabel", "");
+  descriptions.add("gemGeometry", desc);
+}
 
 std::unique_ptr<GEMGeometry> GEMGeometryESModule::produce(const MuonGeometryRecord& record) {
   auto gemGeometry = std::make_unique<GEMGeometry>();
 
-  if (useDDD_) {
+  if (fromDDD_) {
     auto cpv = record.getTransientHandle(cpvToken_);
     const auto& mdc = record.get(mdcToken_);
-    GEMGeometryBuilderFromDDD builder;
+    GEMGeometryBuilder builder;
+    builder.build(*gemGeometry, cpv.product(), mdc);
+  } else if (fromDD4hep_) {
+    edm::ESTransientHandle<cms::DDCompactView> cpv = record.getTransientHandle(dd4hepcpvToken_);
+    const auto& mdc = record.get(mdcToken_);
+    GEMGeometryBuilder builder;
     builder.build(*gemGeometry, cpv.product(), mdc);
   } else {
     const auto& riggem = record.get(riggemToken_);

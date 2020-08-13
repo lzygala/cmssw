@@ -95,7 +95,7 @@ int APVGain::subdetectorPlane(uint32_t det_id, const TrackerTopology* topo) {
 int APVGain::subdetectorPlane(const std::string& tag) {
   std::size_t p = (tag.find("layer") != std::string::npos) ? tag.find("layer") : tag.find("wheel");
   if (p != std::string::npos) {
-    std::size_t start = tag.find("_", p + 1) + 1;
+    std::size_t start = tag.find('_', p + 1) + 1;
     std::size_t stop = tag.find('_', start);
     std::string plane = tag.substr(start, stop - start);
     return atoi(plane.c_str());
@@ -105,9 +105,9 @@ int APVGain::subdetectorPlane(const std::string& tag) {
 
 /** Brief Fetch the Monitor Element corresponding to a DetId.
  *  */
-std::vector<MonitorElement*> APVGain::FetchMonitor(std::vector<APVGain::APVmon> histos,
-                                                   uint32_t det_id,
-                                                   const TrackerTopology* topo) {
+std::vector<APVGain::MonitorElement*> APVGain::FetchMonitor(std::vector<APVGain::APVmon> histos,
+                                                            uint32_t det_id,
+                                                            const TrackerTopology* topo) {
   std::vector<MonitorElement*> found = std::vector<MonitorElement*>();
   int sId = APVGain::subdetectorId(det_id);
   int sPlane = APVGain::subdetectorPlane(det_id, topo);

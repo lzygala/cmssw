@@ -1,3 +1,4 @@
+#include "SimCalorimetry/HcalSimProducers/interface/HcalDigitizer.h"
 #include "CalibFormats/HcalObjects/interface/HcalDbRecord.h"
 #include "CalibFormats/HcalObjects/interface/HcalDbService.h"
 #include "CondFormats/DataRecord/interface/HBHEDarkeningRecord.h"
@@ -26,11 +27,11 @@
 #include "SimCalorimetry/HcalSimAlgos/interface/HcalSiPMHitResponse.h"
 #include "SimCalorimetry/HcalSimAlgos/interface/HcalSimParameterMap.h"
 #include "SimCalorimetry/HcalSimAlgos/interface/HcalTimeSlewSim.h"
-#include "SimCalorimetry/HcalSimProducers/interface/HcalDigitizer.h"
 #include "SimDataFormats/CrossingFrame/interface/CrossingFrame.h"
 #include "SimDataFormats/CrossingFrame/interface/MixCollection.h"
 #include "SimGeneral/MixingModule/interface/PileUpEventPrincipal.h"
 #include <boost/foreach.hpp>
+#include <memory>
 
 //#define DebugLog
 
@@ -129,16 +130,22 @@ HcalDigitizer::HcalDigitizer(const edm::ParameterSet &ps, edm::ConsumesCollector
 
   theCoderFactory = std::make_unique<HcalCoderFactory>(HcalCoderFactory::DB);
 
-  theHBHEElectronicsSim = std::make_unique<HcalElectronicsSim>(theHBHEAmplifier.get(), theCoderFactory.get(), PreMix1);
-  theHFElectronicsSim = std::make_unique<HcalElectronicsSim>(theHFAmplifier.get(), theCoderFactory.get(), PreMix1);
-  theHOElectronicsSim = std::make_unique<HcalElectronicsSim>(theHOAmplifier.get(), theCoderFactory.get(), PreMix1);
-  theZDCElectronicsSim = std::make_unique<HcalElectronicsSim>(theZDCAmplifier.get(), theCoderFactory.get(), PreMix1);
+  theHBHEElectronicsSim =
+      std::make_unique<HcalElectronicsSim>(&theParameterMap, theHBHEAmplifier.get(), theCoderFactory.get(), PreMix1);
+  theHFElectronicsSim =
+      std::make_unique<HcalElectronicsSim>(&theParameterMap, theHFAmplifier.get(), theCoderFactory.get(), PreMix1);
+  theHOElectronicsSim =
+      std::make_unique<HcalElectronicsSim>(&theParameterMap, theHOAmplifier.get(), theCoderFactory.get(), PreMix1);
+  theZDCElectronicsSim =
+      std::make_unique<HcalElectronicsSim>(&theParameterMap, theZDCAmplifier.get(), theCoderFactory.get(), PreMix1);
   theHFQIE10ElectronicsSim =
-      std::make_unique<HcalElectronicsSim>(theHFQIE10Amplifier.get(),
+      std::make_unique<HcalElectronicsSim>(&theParameterMap,
+                                           theHFQIE10Amplifier.get(),
                                            theCoderFactory.get(),
                                            PreMix1);  // should this use a different coder factory?
   theHBHEQIE11ElectronicsSim =
-      std::make_unique<HcalElectronicsSim>(theHBHEQIE11Amplifier.get(),
+      std::make_unique<HcalElectronicsSim>(&theParameterMap,
+                                           theHBHEQIE11Amplifier.get(),
                                            theCoderFactory.get(),
                                            PreMix1);  // should this use a different coder factory?
 
@@ -229,7 +236,7 @@ HcalDigitizer::HcalDigitizer(const edm::ParameterSet &ps, edm::ConsumesCollector
   }
 
   if (agingFlagHF)
-    m_HFRecalibration.reset(new HFRecalibration(ps.getParameter<edm::ParameterSet>("HFRecalParameterBlock")));
+    m_HFRecalibration = std::make_unique<HFRecalibration>(ps.getParameter<edm::ParameterSet>("HFRecalParameterBlock"));
 }
 
 HcalDigitizer::~HcalDigitizer() {}

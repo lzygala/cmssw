@@ -1,5 +1,4 @@
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "DataFormats/Common/interface/DetSetVector.h"
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
 #include "DataFormats/SiPixelDigi/interface/PixelDigi.h"
@@ -13,12 +12,12 @@
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/Records/interface/TrackerTopologyRcd.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetType.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetType.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/RectangularPixelTopology.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
-#include "Validation/TrackerDigis/interface/SiPixelDigiValid.h"
+#include "SiPixelDigiValid.h"
 
 // using namespace std;
 // using namespace edm;
@@ -270,13 +269,6 @@ void SiPixelDigiValid::bookHistograms(DQMStore::IBooker &ibooker, const edm::Run
         ibooker.book1D("digi_zp_disk2_panel1", "Digi Num. Panel1 Of 2nd Disk In ZPlus Side ", 30, 0., 30.);
     meNdigiZpDisk2PerPanel2_ =
         ibooker.book1D("digi_zp_disk2_panel2", "Digi Num. Panel2 Of 2nd Disk In ZPlus Side ", 30, 0., 30.);
-  }
-}
-
-void SiPixelDigiValid::endJob() {
-  // Save histos in a file only in standalone mode
-  if (runStandalone && !outputFile_.empty() && dbe_) {
-    dbe_->save(outputFile_);
   }
 }
 

@@ -18,11 +18,10 @@
 #include <FWCore/Framework/interface/EventSetup.h>
 #include <FWCore/Framework/interface/LuminosityBlock.h>
 #include "DataFormats/DTDigi/interface/DTuROSControlData.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include <DQMServices/Core/interface/DQMEDHarvester.h>
 
-class DQMStore;
-class MonitorElement;
 class DTReadOutMapping;
 
 class DTDataIntegrityTest : public DQMEDHarvester {
@@ -38,9 +37,6 @@ protected:
 
   /// Get the ME name
   std::string getMEName(std::string histoType, int FEDId);
-
-  /// Book the MEs
-  void bookHistos(DQMStore::IBooker &, std::string histoType, int dduId);
 
   /// DQM Client Diagnostic
   void dqmEndLuminosityBlock(DQMStore::IBooker &,
@@ -58,9 +54,6 @@ private:
   // prescale on the # of LS to update the test
   int prescaleFactor;
 
-  // to use in 2018 with uROS
-  bool checkUros;
-
   //Counter between 0 and nTimeBin
   int counter;
 
@@ -74,12 +67,6 @@ private:
   edm::ESHandle<DTReadOutMapping> mapping;
 
   // Monitor Elements
-  std::map<std::string, std::map<int, MonitorElement *> > dduHistos;
-  std::map<std::string, std::map<int, std::vector<MonitorElement *> > > dduVectorHistos;
-
-  std::map<std::string, std::map<int, MonitorElement *> > fedHistos;
-  std::map<std::string, std::map<int, std::vector<MonitorElement *> > > fedVectorHistos;
-
   MonitorElement *summaryHisto;
   MonitorElement *summaryTDCHisto;
   MonitorElement *glbSummaryHisto;

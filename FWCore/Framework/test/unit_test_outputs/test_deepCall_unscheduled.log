@@ -71,6 +71,8 @@ ModuleCallingContext state = Running
 ++++ finished: begin stream for module: stream = 0 label = 'result2' id = 6
 ++++ starting: begin stream for module: stream = 0 label = 'result4' id = 7
 ++++ finished: begin stream for module: stream = 0 label = 'result4' id = 7
+++++ starting: begin process block
+++++ finished: begin process block
 ++++ starting: source run
 ++++ finished: source run
 ++++ starting: global begin run 1 : time = 1000000
@@ -513,6 +515,8 @@ ModuleCallingContext state = Running
 ++++++ starting: global end lumi for module: label = 'get' id = 3
 ++++++ finished: global end lumi for module: label = 'get' id = 3
 ++++ finished: global end lumi: run = 1 lumi = 1 time = 1000000
+++++ starting: global write lumi: run = 1 lumi = 1 time = 1000000
+++++ finished: global write lumi: run = 1 lumi = 1 time = 1000000
 ++++ starting: end run: stream = 0 run = 1 time = 1000030
 ++++++ starting: end run for module: stream = 0 label = 'one' id = 4
 StreamContext: StreamID = 0 transition = EndRun
@@ -543,6 +547,12 @@ ModuleCallingContext state = Running
 ++++++ starting: global end run for module: label = 'get' id = 3
 ++++++ finished: global end run for module: label = 'get' id = 3
 ++++ finished: global end run 1 : time = 1000030
+++++ starting: global write run 1 : time = 1000030
+++++ finished: global write run 1 : time = 1000030
+++++ starting: end process block
+++++ finished: end process block
+++++ starting: write process block
+++++ finished: write process block
 ++++ starting: end stream for module: stream = 0 label = 'get' id = 3
 ++++ finished: end stream for module: stream = 0 label = 'get' id = 3
 ++++ starting: end stream for module: stream = 0 label = 'TriggerResults' id = 1

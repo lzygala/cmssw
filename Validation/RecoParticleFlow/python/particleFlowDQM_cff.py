@@ -1,5 +1,11 @@
 import FWCore.ParameterSet.Config as cms
+import Validation.RecoParticleFlow.defaults_cfi as default
 from Validation.RecoParticleFlow.defaults_cfi import ptbins, etabins, response_distribution_name, genjet_distribution_name,jetResponseDir,genjetDir
+
+#----- ----- ----- ----- ----- ----- ----- -----
+#
+# Auxiliary definitions
+#
 
 def make_response_plot_pset(name, title, responseNbins, responseLow, responseHigh, ptBinLow, ptBinHigh, etaBinLow, etaBinHigh):
     return cms.PSet(
@@ -22,7 +28,7 @@ def make_response_plot_pset(name, title, responseNbins, responseLow, responseHig
 #you want to emulate a 2D map over (pT, |eta|) of 1D histograms.
 def createResponsePlots(ptbins, etabins):
     response_plots = []
-    #we always use a range [ibin, ibin+1) 
+    #we always use a range [ibin, ibin+1)
     for ietabin in range(len(etabins)-1):
         for iptbin in range(len(ptbins)-1):
 
@@ -48,10 +54,10 @@ def createGenJetPlots(ptbins, etabins):
         )]
     return plots
 
-#matchRecoJetToGenJet = cms.EDProducer('MatchRecToGen',
-#        srcGen = cms.InputTag('ak4PFJets'),
-#        srcRec = cms.InputTag('ak4GenJets')
-#    )
+#----- ----- ----- ----- ----- ----- ----- -----
+#
+# Config for analyzer and postprocessor
+#
 
 name = "genjet_pt"
 title = "genjet pt"
@@ -62,22 +68,41 @@ pfJetAnalyzerDQM = cms.EDProducer("PFJetAnalyzerDQM",
     genJetCollection = cms.InputTag('slimmedGenJets'),
     jetDeltaR = cms.double(0.2),
 
+    # turn gen jets on or off
+    genJetsOn = cms.bool(True),
+
     responsePlots = cms.VPSet(createResponsePlots(ptbins, etabins)),
     genJetPlots = cms.VPSet(createGenJetPlots(ptbins, etabins))
-                                  
+
 )
+
+pfPuppiJetAnalyzerDQM = pfJetAnalyzerDQM.clone()
+pfPuppiJetAnalyzerDQM.recoJetCollection = cms.InputTag('slimmedJetsPuppi')
+pfPuppiJetAnalyzerDQM.genJetsOn = cms.bool(False)
+
+vjetResponseDir = [jetResponseDir + "slimmedJets/JEC/",
+                   jetResponseDir + "slimmedJets/noJEC/",
+                   jetResponseDir + "slimmedJetsPuppi/JEC/",
+                   jetResponseDir + "slimmedJetsPuppi/noJEC/"]
 
 pfJetDQMPostProcessor = cms.EDProducer("PFJetDQMPostProcessor",
 
-    jetResponseDir = cms.string( jetResponseDir ),
+    jetResponseDir = cms.vstring( vjetResponseDir ),
     genjetDir = cms.string( genjetDir ),
     ptBins = cms.vdouble( ptbins ),
     etaBins = cms.vdouble( etabins ),
-    recoPtCut = cms.double( 15. ) 
-                                       
+    recoPtCut = cms.double( 15. )
+
 )
 
-pfDQM = cms.Sequence(
-#    matchRecoJetToGenJet *
-    pfJetAnalyzerDQM
+
+# PFCandidates
+PFCandAnalyzerDQM = cms.EDProducer("PFCandidateAnalyzerDQM",
+    PFCandType = cms.InputTag("packedPFCandidates"),
+    etabins = cms.vdouble( default.etaBinsOffset ),
+    pdgKeys = cms.vuint32( default.pdgIDDict.keys() ),
+    pdgStrs = cms.vstring( default.pdgIDDict.values() )
 )
+
+
+#----- ----- ----- ----- ----- ----- ----- -----

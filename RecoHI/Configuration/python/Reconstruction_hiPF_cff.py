@@ -37,8 +37,6 @@ ootPhotons.isolationSumsCalculatorSet.trackProducer = cms.InputTag("hiGeneralTra
 
 from RecoParticleFlow.Configuration.RecoParticleFlow_cff import *
 
-particleFlowClusterECAL.energyCorrector.verticesLabel = cms.InputTag('hiPixelAdaptiveVertex')
-
 mvaElectrons.vertexTag = cms.InputTag("hiSelectedVertex")
 
 particleFlowBlock.elementImporters = cms.VPSet(
@@ -58,10 +56,13 @@ particleFlowBlock.elementImporters = cms.VPSet(
     cms.PSet( importerName = cms.string("GeneralTracksImporter"),
               source = cms.InputTag("pfTrack"),
               muonSrc = cms.InputTag("hiMuons1stStep"),
+              trackQuality = cms.string("highPurity"),
+              cleanBadConvertedBrems = cms.bool(False),
               useIterativeTracking = cms.bool(False),
               DPtOverPtCuts_byTrackAlgo = cms.vdouble(-1.0,-1.0,-1.0,
                                                        1.0,1.0),
-              NHitCuts_byTrackAlgo = cms.vuint32(3,3,3,3,3)
+              NHitCuts_byTrackAlgo = cms.vuint32(3,3,3,3,3),
+              muonMaxDPtOPt = cms.double(1)
               ),
     # to properly set SC based links you need to run ECAL importer
     # after you've imported all SCs to the block
@@ -91,20 +92,24 @@ particleFlow.Muons = cms.InputTag("muons","hiMuons1stStep2muonsMap")
 
 
 # local reco must run before electrons (RecoHI/HiEgammaAlgos), due to PF integration
-hiParticleFlowLocalReco = cms.Sequence(particleFlowCluster)
+hiParticleFlowLocalRecoTask = cms.Task(particleFlowClusterTask)
+hiParticleFlowLocalReco = cms.Sequence(hiParticleFlowLocalRecoTask)
 
-particleFlowTmpSeq = cms.Sequence(particleFlowTmp)
+particleFlowTmpTask = cms.Task(particleFlowTmp)
+particleFlowTmpSeq = cms.Sequence(particleFlowTmpTask)
 
 #PF Reco runs after electrons
-hiParticleFlowReco = cms.Sequence( pfGsfElectronMVASelectionSequence
-                                   * particleFlowBlock
-                                   * particleFlowEGammaFull
-                                   * photonIsolationHIProducerGED
-                                   * particleFlowTmpSeq
-                                   * fixedGridRhoFastjetAllTmp
-                                   * particleFlowTmpPtrs
-                                   * particleFlowEGammaFinal
-                                   * pfParticleSelectionSequence
+hiParticleFlowRecoTask = cms.Task( pfGsfElectronMVASelectionTask
+                                   , particleFlowBlock
+                                   , particleFlowEGammaFullTask
+                                   , photonIsolationHIProducerGED
+                                   , particleFlowTmpTask
+                                   , fixedGridRhoFastjetAllTmp
+                                   , particleFlowTmpPtrs
+                                   , particleFlowEGammaFinalTask
+                                   , pfParticleSelectionTask
                                    )
+hiParticleFlowReco = cms.Sequence(hiParticleFlowRecoTask)
 
-particleFlowLinks = cms.Sequence( particleFlow*particleFlowPtrs*chargedHadronPFTrackIsolation*particleBasedIsolationSequence)
+particleFlowLinksTask = cms.Task( particleFlow,particleFlowPtrs,chargedHadronPFTrackIsolation,particleBasedIsolationTask)
+particleFlowLinks = cms.Sequence(particleFlowLinksTask)

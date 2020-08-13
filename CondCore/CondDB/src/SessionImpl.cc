@@ -1,5 +1,8 @@
 #include "CondCore/CondDB/interface/Exception.h"
 #include "SessionImpl.h"
+
+#include <memory>
+
 #include "DbConnectionString.h"
 //
 //
@@ -45,20 +48,24 @@ namespace cond {
     bool SessionImpl::isActive() const { return coralSession.get(); }
 
     void SessionImpl::startTransaction(bool readOnly) {
+      std::unique_lock<std::recursive_mutex> lock(transactionMutex);
       if (!transaction.get()) {
         coralSession->transaction().start(readOnly);
-        iovSchemaHandle.reset(new IOVSchema(coralSession->nominalSchema()));
-        gtSchemaHandle.reset(new GTSchema(coralSession->nominalSchema()));
-        runInfoSchemaHandle.reset(new RunInfoSchema(coralSession->nominalSchema()));
-        transaction.reset(new CondDBTransaction(coralSession));
+        iovSchemaHandle = std::make_unique<IOVSchema>(coralSession->nominalSchema());
+        gtSchemaHandle = std::make_unique<GTSchema>(coralSession->nominalSchema());
+        runInfoSchemaHandle = std::make_unique<RunInfoSchema>(coralSession->nominalSchema());
+        transaction = std::make_unique<CondDBTransaction>(coralSession);
       } else {
         if (!readOnly)
           throwException("An update transaction is already active.", "SessionImpl::startTransaction");
       }
       transaction->clients++;
+      transactionLock.swap(lock);
     }
 
     void SessionImpl::commitTransaction() {
+      std::unique_lock<std::recursive_mutex> lock;
+      lock.swap(transactionLock);
       if (transaction) {
         transaction->clients--;
         if (!transaction->clients) {
@@ -72,6 +79,8 @@ namespace cond {
     }
 
     void SessionImpl::rollbackTransaction() {
+      std::unique_lock<std::recursive_mutex> lock;
+      lock.swap(transactionLock);
       if (transaction) {
         transaction->rollback();
         transaction.reset();

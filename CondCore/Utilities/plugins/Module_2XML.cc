@@ -9,6 +9,7 @@ PAYLOAD_2XML_MODULE(pluginUtilities_payload2xml) {
   PAYLOAD_2XML_CLASS(AlignmentSurfaceDeformations);
   PAYLOAD_2XML_CLASS(Alignments);
   PAYLOAD_2XML_CLASS(BeamSpotObjects);
+  PAYLOAD_2XML_CLASS(BeamSpotOnlineObjects);
   PAYLOAD_2XML_CLASS(CSCBadChambers);
   PAYLOAD_2XML_CLASS(CSCBadStrips);
   PAYLOAD_2XML_CLASS(CSCBadWires);
@@ -248,8 +249,10 @@ PAYLOAD_2XML_MODULE(pluginUtilities_payload2xml) {
   PAYLOAD_2XML_CLASS(SiPixelQuality);
   PAYLOAD_2XML_CLASS(SiPixelFEDChannelContainer);
   PAYLOAD_2XML_CLASS(SiPixelQualityProbabilities);
+  PAYLOAD_2XML_CLASS(SiPixelVCal);
   PAYLOAD_2XML_CLASS(SiPixelTemplateDBObject);
   PAYLOAD_2XML_CLASS(SiStripApvGain);
+  PAYLOAD_2XML_CLASS(SiStripApvSimulationParameters);
   PAYLOAD_2XML_CLASS(SiStripBackPlaneCorrection);
   PAYLOAD_2XML_CLASS(SiStripBadStrip);
   PAYLOAD_2XML_CLASS(SiStripConfObject);

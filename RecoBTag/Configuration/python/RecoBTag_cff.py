@@ -7,10 +7,13 @@ from RecoBTag.SecondaryVertex.secondaryVertex_cff import *
 from RecoBTag.Combined.combinedMVA_cff import *
 from RecoBTag.CTagging.RecoCTagging_cff import *
 from RecoBTag.Combined.deepFlavour_cff import *
-from RecoBTag.TensorFlow.pfDeepFlavour_cff import *
-from RecoBTag.TensorFlow.pfDeepDoubleX_cff import *
-from RecoBTag.MXNet.pfDeepBoostedJet_cff import *
+from RecoBTag.ONNXRuntime.pfDeepFlavour_cff import *
+from RecoBTag.ONNXRuntime.pfDeepDoubleX_cff import *
+from RecoBTag.ONNXRuntime.pfDeepBoostedJet_cff import *
+from RecoBTag.ONNXRuntime.pfHiggsInteractionNet_cff import *
+from RecoBTag.ONNXRuntime.pfParticleNet_cff import *
 from RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff import *
+from RecoBTag.PixelCluster.pixelClusterTagInfos_cfi import *
 
 legacyBTaggingTask = cms.Task(
     # impact parameters and IP-only algorithms
@@ -35,7 +38,10 @@ legacyBTaggingTask = cms.Task(
     softPFElectronBJetTags,
 
     # overall combined taggers
-    combinedMVAV2BJetTags
+    combinedMVAV2BJetTags,
+    
+    # pixel cluster
+    pixelClusterTagInfos,
 )
 legacyBTagging = cms.Sequence(legacyBTaggingTask)
 
@@ -69,7 +75,9 @@ pfBTaggingTask = cms.Task(
     #CSV + soft-lepton + jet probability discriminators combined
     pfCombinedMVAV2BJetTags,
     pfChargeBJetTags,
-
+    
+    # pixel cluster
+    pixelClusterTagInfos,
 )
 
 pfBTagging = cms.Sequence(pfBTaggingTask)
@@ -79,3 +87,4 @@ btaggingTask = cms.Task(
     pfCTaggingTask
 )
 btagging = cms.Sequence(btaggingTask)
+

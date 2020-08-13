@@ -52,7 +52,7 @@ namespace edm {
 
     BranchDescription(BranchDescription const& aliasForBranch,
                       std::string const& moduleLabelAlias,
-                      std::string const& poruductInstanceAlias);
+                      std::string const& productInstanceAlias);
 
     ~BranchDescription() {}
 
@@ -108,6 +108,9 @@ namespace edm {
 
     bool isAnyAlias() const { return isAlias() or isSwitchAlias(); }
 
+    bool isProvenanceSetOnRead() const noexcept { return transient_.isProvenanceSetOnRead_; }
+    void setIsProvenanceSetOnRead(bool value = true) noexcept { transient_.isProvenanceSetOnRead_ = value; }
+
     ParameterSetID const& parameterSetID() const { return transient_.parameterSetID_; }
     std::string const& moduleName() const { return transient_.moduleName_; }
 
@@ -139,10 +142,10 @@ namespace edm {
       // This is set if and only if produced_ is true.
       std::string moduleName_;
 
-      // The branch name, which is currently derivable fron the other attributes.
+      // The branch name, which is currently derivable from the other attributes.
       std::string branchName_;
 
-      // The wrapped class name, which is currently derivable fron the other attributes.
+      // The wrapped class name, which is currently derivable from the other attributes.
       std::string wrappedName_;
 
       // For SwitchProducer alias, the label of the aliased-for label; otherwise empty
@@ -189,6 +192,9 @@ namespace edm {
       // True if the product definition has a mergeProduct function
       // and the branchType is Run or Lumi
       bool isMergeable_;
+
+      // True if provenance is set on call from input on read
+      bool isProvenanceSetOnRead_ = false;
     };
 
   private:

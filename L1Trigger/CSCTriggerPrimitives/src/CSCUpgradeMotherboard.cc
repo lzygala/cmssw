@@ -1,48 +1,6 @@
+#include <memory>
+
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCUpgradeMotherboard.h"
-
-CSCUpgradeMotherboard::LCTContainer::LCTContainer(unsigned int trig_window_size)
-    : match_trig_window_size_(trig_window_size) {}
-
-CSCCorrelatedLCTDigi& CSCUpgradeMotherboard::LCTContainer::operator()(int bx, int match_bx, int lct) {
-  return data[bx][match_bx][lct];
-}
-
-void CSCUpgradeMotherboard::LCTContainer::getTimeMatched(const int bx, std::vector<CSCCorrelatedLCTDigi>& lcts) const {
-  for (unsigned int mbx = 0; mbx < match_trig_window_size_; mbx++) {
-    for (int i = 0; i < CSCConstants::MAX_LCTS_PER_CSC; i++) {
-      // consider only valid LCTs
-      if (not data[bx][mbx][i].isValid())
-        continue;
-
-      // remove duplicated LCTs
-      if (std::find(lcts.begin(), lcts.end(), data[bx][mbx][i]) != lcts.end())
-        continue;
-
-      lcts.push_back(data[bx][mbx][i]);
-    }
-  }
-}
-
-void CSCUpgradeMotherboard::LCTContainer::getMatched(std::vector<CSCCorrelatedLCTDigi>& lcts) const {
-  for (int bx = 0; bx < CSCConstants::MAX_LCT_TBINS; bx++) {
-    std::vector<CSCCorrelatedLCTDigi> temp_lcts;
-    CSCUpgradeMotherboard::LCTContainer::getTimeMatched(bx, temp_lcts);
-    lcts.insert(std::end(lcts), std::begin(temp_lcts), std::end(temp_lcts));
-  }
-}
-
-void CSCUpgradeMotherboard::LCTContainer::clear() {
-  // Loop over all time windows
-  for (int bx = 0; bx < CSCConstants::MAX_LCT_TBINS; bx++) {
-    // Loop over all matched trigger windows
-    for (unsigned int mbx = 0; mbx < match_trig_window_size_; mbx++) {
-      // Loop over all stubs
-      for (int i = 0; i < CSCConstants::MAX_LCTS_PER_CSC; i++) {
-        data[bx][mbx][i].clear();
-      }
-    }
-  }
-}
 
 CSCUpgradeMotherboard::CSCUpgradeMotherboard(unsigned endcap,
                                              unsigned station,
@@ -54,19 +12,29 @@ CSCUpgradeMotherboard::CSCUpgradeMotherboard(unsigned endcap,
       CSCMotherboard(endcap, station, sector, subsector, chamber, conf),
       allLCTs(match_trig_window_size) {
   if (!isSLHC_)
-    edm::LogError("CSCUpgradeMotherboard|ConfigError")
-        << "+++ Upgrade CSCUpgradeMotherboard constructed while isSLHC_ is not set! +++\n";
+    edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while isSLHC_ is not set! +++\n";
+
+  if (theRing == 1) {
+    if (theStation == 1 and !runME11Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME11Up_ is not set! +++\n";
+    if (theStation == 2 and !runME21Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME21Up_ is not set! +++\n";
+    if (theStation == 3 and !runME31Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME31Up_ is not set! +++\n";
+    if (theStation == 4 and !runME41Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME41Up_ is not set! +++\n";
+  }
 
   theParity = theChamber % 2 == 0 ? Parity::Even : Parity::Odd;
 
   // generate the LUTs
-  generator_.reset(new CSCUpgradeMotherboardLUTGenerator());
+  generator_ = std::make_unique<CSCUpgradeMotherboardLUTGenerator>();
 
   // enable the upgrade processors
   if (isSLHC_ and theRing == 1) {
-    clctProc.reset(new CSCUpgradeCathodeLCTProcessor(endcap, station, sector, subsector, chamber, conf));
+    clctProc = std::make_unique<CSCUpgradeCathodeLCTProcessor>(endcap, station, sector, subsector, chamber, conf);
     if (enableAlctSLHC_) {
-      alctProc.reset(new CSCUpgradeAnodeLCTProcessor(endcap, station, sector, subsector, chamber, conf));
+      alctProc = std::make_unique<CSCUpgradeAnodeLCTProcessor>(endcap, station, sector, subsector, chamber, conf);
     }
   }
 
@@ -84,8 +52,18 @@ CSCUpgradeMotherboard::CSCUpgradeMotherboard(unsigned endcap,
 
 CSCUpgradeMotherboard::CSCUpgradeMotherboard() : CSCMotherboard(), allLCTs(match_trig_window_size) {
   if (!isSLHC_)
-    edm::LogError("CSCUpgradeMotherboard|ConfigError")
-        << "+++ Upgrade CSCUpgradeMotherboard constructed while isSLHC_ is not set! +++\n";
+    edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while isSLHC_ is not set! +++\n";
+
+  if (theRing == 1) {
+    if (theStation == 1 and !runME11Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME11Up_ is not set! +++\n";
+    if (theStation == 2 and !runME21Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME21Up_ is not set! +++\n";
+    if (theStation == 3 and !runME31Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME31Up_ is not set! +++\n";
+    if (theStation == 4 and !runME41Up_)
+      edm::LogError("CSCUpgradeMotherboard|SetupError") << "+++ TMB constructed while runME41Up_ is not set! +++\n";
+  }
 
   setPrefIndex();
 }
@@ -94,9 +72,8 @@ void CSCUpgradeMotherboard::run(const CSCWireDigiCollection* wiredc, const CSCCo
   clear();
 
   if (!(alctProc and clctProc)) {
-    if (infoV >= 0)
-      edm::LogError("CSCUpgradeMotherboard|SetupError")
-          << "+++ run() called for non-existing ALCT/CLCT processor! +++ \n";
+    edm::LogError("CSCUpgradeMotherboard|SetupError")
+        << "+++ run() called for non-existing ALCT/CLCT processor! +++ \n";
     return;
   }
 
@@ -110,13 +87,17 @@ void CSCUpgradeMotherboard::run(const CSCWireDigiCollection* wiredc, const CSCCo
   if (alctV.empty() and clctV.empty())
     return;
 
+  // encode high multiplicity bits
+  unsigned alctBits = alctProc->getHighMultiplictyBits();
+  encodeHighMultiplicityBits(alctBits);
+
   int used_clct_mask[20];
   for (int c = 0; c < 20; ++c)
     used_clct_mask[c] = 0;
 
   // ALCT centric matching
   for (int bx_alct = 0; bx_alct < CSCConstants::MAX_ALCT_TBINS; bx_alct++) {
-    if (alctProc->bestALCT[bx_alct].isValid()) {
+    if (alctProc->getBestALCT(bx_alct).isValid()) {
       const int bx_clct_start(bx_alct - match_trig_window_size / 2 - alctClctOffset_);
       const int bx_clct_stop(bx_alct + match_trig_window_size / 2 - alctClctOffset_);
 
@@ -127,9 +108,9 @@ void CSCUpgradeMotherboard::run(const CSCWireDigiCollection* wiredc, const CSCCo
         LogTrace("CSCUpgradeMotherboard")
             << "------------------------------------------------------------------------" << std::endl;
         LogTrace("CSCUpgradeMotherboard") << "+++ Best ALCT Details: ";
-        alctProc->bestALCT[bx_alct].print();
+        alctProc->getBestALCT(bx_alct).print();
         LogTrace("CSCUpgradeMotherboard") << "+++ Second ALCT Details: ";
-        alctProc->secondALCT[bx_alct].print();
+        alctProc->getSecondALCT(bx_alct).print();
 
         LogTrace("CSCUpgradeMotherboard")
             << "------------------------------------------------------------------------" << std::endl;
@@ -143,15 +124,15 @@ void CSCUpgradeMotherboard::run(const CSCWireDigiCollection* wiredc, const CSCCo
           continue;
         if (drop_used_clcts and used_clct_mask[bx_clct])
           continue;
-        if (clctProc->bestCLCT[bx_clct].isValid()) {
+        if (clctProc->getBestCLCT(bx_clct).isValid()) {
           if (debug_matching)
-            LogTrace("CSCUpgradeMotherboard") << "++Valid ME21 CLCT: " << clctProc->bestCLCT[bx_clct] << std::endl;
+            LogTrace("CSCUpgradeMotherboard") << "++Valid ME21 CLCT: " << clctProc->getBestCLCT(bx_clct) << std::endl;
 
           int mbx = bx_clct - bx_clct_start;
-          CSCUpgradeMotherboard::correlateLCTs(alctProc->bestALCT[bx_alct],
-                                               alctProc->secondALCT[bx_alct],
-                                               clctProc->bestCLCT[bx_clct],
-                                               clctProc->secondCLCT[bx_clct],
+          CSCUpgradeMotherboard::correlateLCTs(alctProc->getBestALCT(bx_alct),
+                                               alctProc->getSecondALCT(bx_alct),
+                                               clctProc->getBestCLCT(bx_clct),
+                                               clctProc->getSecondCLCT(bx_clct),
                                                allLCTs(bx_alct, mbx, 0),
                                                allLCTs(bx_alct, mbx, 1));
           if (infoV > 1)
@@ -159,9 +140,9 @@ void CSCUpgradeMotherboard::run(const CSCWireDigiCollection* wiredc, const CSCCo
                 << "Successful ALCT-CLCT match in ME21: bx_alct = " << bx_alct << "; match window: [" << bx_clct_start
                 << "; " << bx_clct_stop << "]; bx_clct = " << bx_clct << std::endl;
           LogTrace("CSCUpgradeMotherboard") << "+++ Best CLCT Details: ";
-          clctProc->bestCLCT[bx_clct].print();
+          clctProc->getBestCLCT(bx_clct).print();
           LogTrace("CSCUpgradeMotherboard") << "+++ Second CLCT Details: ";
-          clctProc->secondCLCT[bx_clct].print();
+          clctProc->getSecondCLCT(bx_clct).print();
           if (allLCTs(bx_alct, mbx, 0).isValid()) {
             used_clct_mask[bx_clct] += 1;
             if (match_earliest_clct_only)
@@ -283,6 +264,12 @@ std::vector<CSCCorrelatedLCTDigi> CSCUpgradeMotherboard::readoutLCTs() const {
   allLCTs.getMatched(result);
   if (tmb_cross_bx_algo == 2)
     CSCUpgradeMotherboard::sortLCTs(result, CSCUpgradeMotherboard::sortLCTsByQuality);
+
+  // do a final check on the LCTs in readout
+  for (const auto& lct : result) {
+    checkValid(lct);
+  }
+
   return result;
 }
 

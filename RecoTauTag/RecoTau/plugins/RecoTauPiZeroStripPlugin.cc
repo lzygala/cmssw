@@ -10,9 +10,8 @@
  *
  */
 #include <algorithm>
+#include <functional>
 #include <memory>
-
-#include "boost/bind.hpp"
 
 #include "RecoTauTag/RecoTau/interface/RecoTauPiZeroPlugins.h"
 
@@ -51,7 +50,7 @@ namespace reco {
       void beginEvent() override;
 
     private:
-      RecoTauQualityCuts qcuts_;
+      std::unique_ptr<RecoTauQualityCuts> qcuts_;
       RecoTauVertexAssociator vertexAssociator_;
 
       std::vector<int> inputParticleIds_;  //type of candidates to clusterize
@@ -68,7 +67,7 @@ namespace reco {
 
     RecoTauPiZeroStripPlugin::RecoTauPiZeroStripPlugin(const edm::ParameterSet& pset, edm::ConsumesCollector&& iC)
         : RecoTauPiZeroBuilderPlugin(pset, std::move(iC)),
-          qcuts_(pset.getParameterSet("qualityCuts").getParameterSet("signalQualityCuts")),
+          qcuts_(new RecoTauQualityCuts(pset.getParameterSet("qualityCuts").getParameterSet("signalQualityCuts"))),
           vertexAssociator_(pset.getParameter<edm::ParameterSet>("qualityCuts"), std::move(iC)) {
       inputParticleIds_ = pset.getParameter<std::vector<int> >("stripCandidatesParticleIds");
       etaAssociationDistance_ = pset.getParameter<double>("stripEtaAssociationDistance");
@@ -90,9 +89,9 @@ namespace reco {
       PiZeroVector output;
 
       // Get the candidates passing our quality cuts
-      qcuts_.setPV(vertexAssociator_.associatedVertex(jet));
-      CandPtrs candsVector = qcuts_.filterCandRefs(pfCandidates(jet, inputParticleIds_));
-      //PFCandPtrs candsVector = qcuts_.filterCandRefs(pfGammas(jet));
+      qcuts_->setPV(vertexAssociator_.associatedVertex(jet));
+      CandPtrs candsVector = qcuts_->filterCandRefs(pfCandidates(jet, inputParticleIds_));
+      //PFCandPtrs candsVector = qcuts_->filterCandRefs(pfGammas(jet));
 
       // Convert to stl::list to allow fast deletions
       typedef std::list<reco::CandidatePtr> CandPtrList;
@@ -136,8 +135,7 @@ namespace reco {
       if (combineStrips_ && output.size() > 1) {
         PiZeroVector stripCombinations;
         // Sort the output by descending pt
-        output.sort(
-            output.begin(), output.end(), boost::bind(&RecoTauPiZero::pt, _1) > boost::bind(&RecoTauPiZero::pt, _2));
+        output.sort(output.begin(), output.end(), [&](auto& arg1, auto& arg2) { return arg1.pt() > arg2.pt(); });
         // Get the end of interesting set of strips to try and combine
         PiZeroVector::const_iterator end_iter = takeNElements(output.begin(), output.end(), maxStrips_);
 

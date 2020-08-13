@@ -8,31 +8,29 @@ using namespace std;
 namespace cms {
   namespace dd {
 
-    bool compareEqual(string_view node, string_view name) {
+    bool isMatch(string_view node, string_view name) {
       if (!isRegex(name)) {
         return (name == node);
       } else {
-        if (name.front() != node.front())
-          return false;
         regex pattern({name.data(), name.size()});
         return regex_match(begin(node), end(node), pattern);
       }
     }
 
-    bool accepted(vector<string_view> const& names, string_view node) {
-      return (find_if(begin(names), end(names), [&](const auto& n) -> bool { return compareEqual(node, n); }) !=
-              end(names));
+    bool compareEqual(string_view node, string_view name) { return (name == node); }
+
+    bool compareEqual(string_view node, regex pattern) {
+      return regex_match(std::string(node.data(), node.size()), pattern);
     }
 
-    int contains(string_view input, string_view needle) {
-      auto const& it = search(begin(input), end(input), default_searcher(begin(needle), end(needle)));
-      if (it != end(input)) {
-        return (it - begin(input));
-      }
-      return -1;
+    bool accepted(vector<std::regex> const& keys, string_view node) {
+      return (find_if(begin(keys), end(keys), [&](const auto& n) -> bool { return compareEqual(node, n); }) !=
+              end(keys));
     }
 
-    bool isRegex(string_view input) { return ((contains(input, "*") != -1) || (contains(input, ".") != -1)); }
+    bool isRegex(string_view input) {
+      return (input.find(".") != std::string_view::npos) || (input.find("*") != std::string_view::npos);
+    }
 
     string_view realTopName(string_view input) {
       string_view v = input;
@@ -56,6 +54,13 @@ namespace cms {
       if (start < str.length())
         ret.emplace_back(str.substr(start, str.length() - start));
       return ret;
+    }
+
+    std::string_view noNamespace(std::string_view input) {
+      std::string_view v = input;
+      auto first = v.find_first_of(":");
+      v.remove_prefix(std::min(first + 1, v.size()));
+      return v;
     }
   }  // namespace dd
 }  // namespace cms

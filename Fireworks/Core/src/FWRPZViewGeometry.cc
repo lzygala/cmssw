@@ -23,6 +23,7 @@
 #include "TEvePointSet.h"
 #include "TEveStraightLineSet.h"
 #include "TEveGeoNode.h"
+#include "TEveGeoShape.h"
 #include "TEveManager.h"
 #include "TEveProjectionManager.h"
 
@@ -80,7 +81,8 @@ FWRPZViewGeometry::~FWRPZViewGeometry() {
 //______________________________________________________________________________
 
 void FWRPZViewGeometry::initStdGeoElements(const FWViewType::EType type) {
-  assert(m_geom != nullptr);
+  if (m_geom->isEmpty())
+    return;
 
   if (type == FWViewType::kRhoZ) {
     AddElement(makeMuonGeometryRhoZ());

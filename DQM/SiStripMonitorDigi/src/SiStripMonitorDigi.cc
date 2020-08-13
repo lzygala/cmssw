@@ -3,6 +3,7 @@
  */
 // Original Author:  Dorian Kcira
 //         Created:  Sat Feb  4 20:49:10 CET 2006
+//         Updated:  May 2020, Suvankar Roy Chowdhury
 #include <fstream>
 #include "TNamed.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -20,7 +21,6 @@
 #include "DQM/SiStripCommon/interface/SiStripHistoId.h"
 #include "DQM/SiStripMonitorDigi/interface/SiStripMonitorDigi.h"
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "DPGAnalysis/SiStripTools/interface/APVCyclePhaseCollection.h"
 #include "DPGAnalysis/SiStripTools/interface/EventWithHistory.h"
 #include "CalibTracker/SiStripCommon/interface/SiStripDCSStatus.h"
@@ -186,11 +186,11 @@ SiStripMonitorDigi::SiStripMonitorDigi(const edm::ParameterSet& iConfig)
     dcsStatus_ = nullptr;
 
   //initialize boolean for the data-presence check (needed for TotalNumberOfDigisFailure histogram)
-  isStableBeams = false;
   SBTransitionDone = false;
   SBDeclaredAt = 0;
   ignoreFirstNLumisections_ = TMath::Max(0, ParametersTotDigiFailure.getParameter<int32_t>("ignoreFirstNLumisections"));
   integrateNLumisections_ = TMath::Max(1, ParametersTotDigiFailure.getParameter<int32_t>("integrateNLumisections"));
+  vecSubDetTotDigiProfLS.reserve(7);
 }
 //------------------------------------------------------------------------------------------
 
@@ -268,45 +268,41 @@ void SiStripMonitorDigi::dqmBeginRun(const edm::Run& run, const edm::EventSetup&
 }
 
 //--------------------------------------------------------------------------------------------
-void SiStripMonitorDigi::endRun(const edm::Run&, const edm::EventSetup&) {}
-
-//--------------------------------------------------------------------------------------------
-void SiStripMonitorDigi::beginLuminosityBlock(const edm::LuminosityBlock& lb, const edm::EventSetup& es) {
-  if (subdetswitchtotdigifailureon) {
-    isStableBeams = false;
-    //integrate stats over several LS to prevent eventual low trigger rates
-    if (digiFailureMEs.SubDetTotDigiProfLS && lb.id().luminosityBlock() % integrateNLumisections_ == 0)
-      digiFailureMEs.SubDetTotDigiProfLS->Reset();
-  }
+std::shared_ptr<bool> SiStripMonitorDigi::globalBeginLuminosityBlock(const edm::LuminosityBlock& lb,
+                                                                     const edm::EventSetup& es) const {
+  bool isStableBeams = false;
+  return std::make_shared<bool>(isStableBeams);
 }
 
 //--------------------------------------------------------------------------------------------
-void SiStripMonitorDigi::endLuminosityBlock(const edm::LuminosityBlock& lb, const edm::EventSetup& es) {
+void SiStripMonitorDigi::globalEndLuminosityBlock(const edm::LuminosityBlock& lb, const edm::EventSetup& es) {
+  unsigned int currentLS = lb.id().luminosityBlock();
+  const bool isStableBeams = luminosityBlockCache(lb.index());
   if (subdetswitchtotdigifailureon && isStableBeams && !SBTransitionDone) {
-    SBDeclaredAt = (int)lb.id().luminosityBlock();
+    SBDeclaredAt = (int)currentLS;
     SBTransitionDone = true;
   }
 
-  if (subdetswitchtotdigifailureon && lb.id().luminosityBlock() % integrateNLumisections_ == 0) {
+  if (subdetswitchtotdigifailureon && currentLS % integrateNLumisections_ == 0) {
     int nFeds[6] = {96, 96, 84, 15, 15, 134};  // tec- , tec+ , tib , tid- , tid+ , tob
     int nFedsConnected[6] = {nFedTECm, nFedTECp, nFedTIB, nFedTIDm, nFedTIDp, nFedTOB};
 
     if (digiFailureMEs.SubDetTotDigiProfLS) {
       for (int ibin = 1; ibin < 7; ibin++) {
-        float value = digiFailureMEs.SubDetTotDigiProfLS->getBinContent(ibin);
+        //the vector now has the sum from previous integrateNLumisections_
+        //whereas digiFailureMEs.SubDetTotDigiProfLS now has sum for all LS upto now.
+        float value = digiFailureMEs.SubDetTotDigiProfLS->getBinContent(ibin) - vecSubDetTotDigiProfLS[ibin];
+        vecSubDetTotDigiProfLS[ibin] = digiFailureMEs.SubDetTotDigiProfLS->getBinContent(ibin);
 
         float fillvalue = 2;
         if (isStableBeams
             //	     && (int)lb.id().luminosityBlock() > ignoreFirstNLumisections_     //ignore first X lumisections for HV rampup
-            && ((int)lb.id().luminosityBlock() - SBDeclaredAt) > ignoreFirstNLumisections_ &&
+            && ((int)currentLS - SBDeclaredAt) > ignoreFirstNLumisections_ &&
             (float)nFedsConnected[ibin - 1] / nFeds[ibin - 1] > 0.5 && value < 50.) {
           fillvalue = 1.01;
         }
-
         //account for integrated LS: fill previous bins as well
-        for (int fillbin = (int)lb.id().luminosityBlock() - integrateNLumisections_ + 1;
-             fillbin <= (int)lb.id().luminosityBlock();
-             fillbin++)
+        for (int fillbin = (int)currentLS - integrateNLumisections_ + 1; fillbin <= (int)currentLS; fillbin++)
           digiFailureMEs.SubDetDigiFailures2D->Fill(fillbin, ibin - 1, fillvalue);
       }
     }
@@ -453,7 +449,7 @@ void SiStripMonitorDigi::createMEs(DQMStore::IBooker& ibooker, const edm::EventS
                                                       "");
       ShotsVsTimeApvShotsGlobal->setAxisTitle("Time (s)", 1);
       ShotsVsTimeApvShotsGlobal->setAxisTitle("# Apv Shots", 2);
-      if (ShotsVsTimeApvShotsGlobal->kind() == MonitorElement::DQM_KIND_TPROFILE)
+      if (ShotsVsTimeApvShotsGlobal->kind() == MonitorElement::Kind::TPROFILE)
         ShotsVsTimeApvShotsGlobal->getTH1()->SetCanExtend(TH1::kAllAxes);
     }
 
@@ -813,6 +809,7 @@ void SiStripMonitorDigi::analyze(const edm::Event& iEvent, const edm::EventSetup
     }
   }
 
+  bool& isStableBeams = *luminosityBlockCache(iEvent.getLuminosityBlock().index());
   if (subdetswitchtotdigifailureon) {
     //check Stable beams bit
     edm::Handle<L1GlobalTriggerEvmReadoutRecord> gtEvm_handle;
@@ -966,9 +963,9 @@ void SiStripMonitorDigi::ResetModuleMEs(uint32_t idet) {
     mod_me.StripOccupancy->Reset();
 }
 //------------------------------------------------------------------------------------------
-MonitorElement* SiStripMonitorDigi::bookMETrend(DQMStore::IBooker& ibooker,
-                                                const char* ParameterSetLabel,
-                                                const char* HistoName) {
+SiStripMonitorDigi::MonitorElement* SiStripMonitorDigi::bookMETrend(DQMStore::IBooker& ibooker,
+                                                                    const char* ParameterSetLabel,
+                                                                    const char* HistoName) {
   edm::ParameterSet ParametersTrend = conf_.getParameter<edm::ParameterSet>("Trending");
   MonitorElement* me =
       ibooker.bookProfile(HistoName,
@@ -986,15 +983,15 @@ MonitorElement* SiStripMonitorDigi::bookMETrend(DQMStore::IBooker& ibooker,
     return me;
 
   me->setAxisTitle("Lumisection", 1);
-  if (me->kind() == MonitorElement::DQM_KIND_TPROFILE)
+  if (me->kind() == MonitorElement::Kind::TPROFILE)
     me->getTH1()->SetCanExtend(TH1::kAllAxes);
   return me;
 }
 
 //------------------------------------------------------------------------------------------
-MonitorElement* SiStripMonitorDigi::bookME1D(DQMStore::IBooker& ibooker,
-                                             const char* ParameterSetLabel,
-                                             const char* HistoName) {
+SiStripMonitorDigi::MonitorElement* SiStripMonitorDigi::bookME1D(DQMStore::IBooker& ibooker,
+                                                                 const char* ParameterSetLabel,
+                                                                 const char* HistoName) {
   edm::ParameterSet Parameters = conf_.getParameter<edm::ParameterSet>(ParameterSetLabel);
   return ibooker.book1D(HistoName,
                         HistoName,
@@ -1022,9 +1019,8 @@ void SiStripMonitorDigi::createModuleMEs(DQMStore::IBooker& ibooker, ModMEs& mod
   if (moduleswitchnumdigison) {
     hid = hidmanager.createHistoId("NumberOfDigis", "det", detid);
     mod_single.NumberOfDigis = ibooker.book1D(hid, hid, 21, -0.5, 20.5);
-    ibooker.tag(mod_single.NumberOfDigis, detid);
     mod_single.NumberOfDigis->setAxisTitle("number of digis in one detector module");
-    mod_single.NumberOfDigis->getTH1()->StatOverflows(kTRUE);  // over/underflows in Mean calculation
+    mod_single.NumberOfDigis->setStatOverflows(kTRUE);  // over/underflows in Mean calculation
   }
 
   //nr. of digis per strip in module
@@ -1032,15 +1028,13 @@ void SiStripMonitorDigi::createModuleMEs(DQMStore::IBooker& ibooker, ModMEs& mod
     hid = hidmanager.createHistoId("NumberOfDigisPerStrip", "det", detid);
     short nstrips = SiStripDetCabling_->nApvPairs(detid) * 2 * 128;
     mod_single.NumberOfDigisPerStrip = ibooker.book1D(hid, hid, nstrips, -0.5, nstrips + 0.5);
-    ibooker.tag(mod_single.NumberOfDigisPerStrip, detid);
     mod_single.NumberOfDigisPerStrip->setAxisTitle("number of (digis > 0) per strip");
-    mod_single.NumberOfDigisPerStrip->getTH1()->StatOverflows(kTRUE);  // over/underflows in Mean calculation
+    mod_single.NumberOfDigisPerStrip->setStatOverflows(kTRUE);  // over/underflows in Mean calculation
   }
   //#ADCs for hottest strip
   if (moduleswitchadchotteston) {
     hid = hidmanager.createHistoId("ADCsHottestStrip", "det", detid);
     mod_single.ADCsHottestStrip = bookME1D(ibooker, "TH1ADCsHottestStrip", hid.c_str());
-    ibooker.tag(mod_single.ADCsHottestStrip, detid);  // 6 APVs -> 768 strips
     mod_single.ADCsHottestStrip->setAxisTitle("number of ADCs for hottest strip");
   }
 
@@ -1048,7 +1042,6 @@ void SiStripMonitorDigi::createModuleMEs(DQMStore::IBooker& ibooker, ModMEs& mod
   if (moduleswitchadccooleston) {
     hid = hidmanager.createHistoId("ADCsCoolestStrip", "det", detid);
     mod_single.ADCsCoolestStrip = bookME1D(ibooker, "TH1ADCsCoolestStrip", hid.c_str());
-    ibooker.tag(mod_single.ADCsCoolestStrip, detid);
     mod_single.ADCsCoolestStrip->setAxisTitle("number of ADCs for coolest strip");
   }
 
@@ -1056,7 +1049,6 @@ void SiStripMonitorDigi::createModuleMEs(DQMStore::IBooker& ibooker, ModMEs& mod
   if (moduleswitchdigiadcson) {
     hid = hidmanager.createHistoId("DigiADCs", "det", detid);
     mod_single.DigiADCs = bookME1D(ibooker, "TH1DigiADCs", hid.c_str());
-    ibooker.tag(mod_single.DigiADCs, detid);
     mod_single.DigiADCs->setAxisTitle("number of ADCs for each digi");
   }
 
@@ -1064,7 +1056,6 @@ void SiStripMonitorDigi::createModuleMEs(DQMStore::IBooker& ibooker, ModMEs& mod
   if (moduleswitchstripoccupancyon) {
     hid = hidmanager.createHistoId("StripOccupancy", "det", detid);
     mod_single.StripOccupancy = bookME1D(ibooker, "TH1StripOccupancy", hid.c_str());
-    ibooker.tag(mod_single.StripOccupancy, detid);
     mod_single.StripOccupancy->setAxisTitle("strip occupancy");
   }
 }
@@ -1199,7 +1190,7 @@ void SiStripMonitorDigi::createSubDetMEs(DQMStore::IBooker& ibooker, std::string
                                                       "");
     subdetMEs.SubDetTotDigiProf->setAxisTitle("Lumisection", 1);
 
-    if (subdetMEs.SubDetTotDigiProf->kind() == MonitorElement::DQM_KIND_TPROFILE)
+    if (subdetMEs.SubDetTotDigiProf->kind() == MonitorElement::Kind::TPROFILE)
       subdetMEs.SubDetTotDigiProf->getTH1()->SetCanExtend(TH1::kAllAxes);
   }
 
@@ -1313,7 +1304,7 @@ void SiStripMonitorDigi::createSubDetMEs(DQMStore::IBooker& ibooker, std::string
                                                         "");
     subdetMEs.SubDetNApvShotsProf->setAxisTitle("Time (s)", 1);
     subdetMEs.SubDetNApvShotsProf->setAxisTitle("# Apv Shots", 2);
-    if (subdetMEs.SubDetNApvShotsProf->kind() == MonitorElement::DQM_KIND_TPROFILE)
+    if (subdetMEs.SubDetNApvShotsProf->kind() == MonitorElement::Kind::TPROFILE)
       subdetMEs.SubDetNApvShotsProf->getTH1()->SetCanExtend(TH1::kAllAxes);
   }
 

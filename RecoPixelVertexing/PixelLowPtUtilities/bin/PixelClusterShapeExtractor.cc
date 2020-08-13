@@ -20,7 +20,7 @@
 #include "RecoTracker/Record/interface/CkfComponentsRecord.h"
 #include "RecoPixelVertexing/PixelLowPtUtilities/interface/ClusterShapeHitFilter.h"
 
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
 #
 
@@ -30,8 +30,10 @@
 #include "TH2F.h"
 
 #include <map>
-#include <vector>
+#include <memory>
+
 #include <fstream>
+#include <vector>
 
 #include <mutex>
 
@@ -136,7 +138,7 @@ void PixelClusterShapeExtractor::init() {
                                 (eyMax + 2)));
       }
   }
-  theMutex.reset(new std::mutex[hspc.size()]);
+  theMutex = std::make_unique<std::mutex[]>(hspc.size());
 }
 
 /*****************************************************************************/

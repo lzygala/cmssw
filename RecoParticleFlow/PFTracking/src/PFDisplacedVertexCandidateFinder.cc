@@ -1,3 +1,5 @@
+#include <memory>
+
 #include "RecoParticleFlow/PFTracking/interface/PFDisplacedVertexCandidateFinder.h"
 
 #include "DataFormats/GeometryVector/interface/GlobalVector.h"
@@ -18,10 +20,9 @@ PFDisplacedVertexCandidateFinder::PFDisplacedVertexCandidateFinder()
       primaryVertexCut2_(0.0),
       dcaPInnerHitCut2_(1000.0),
       vertexCandidatesSize_(50),
-      debug_(false) {
-  TwoTrackMinimumDistance theMinimum(TwoTrackMinimumDistance::SlowMode);
-  theMinimum_ = theMinimum;
-}
+      theMinimum_(TwoTrackMinimumDistance::SlowMode),
+      debug_(false),
+      magField_(nullptr) {}
 
 PFDisplacedVertexCandidateFinder::~PFDisplacedVertexCandidateFinder() {
 #ifdef PFLOW_DEBUG
@@ -86,7 +87,7 @@ void PFDisplacedVertexCandidateFinder::findDisplacedVertexCandidates() {
   if (vertexCandidates_.get())
     vertexCandidates_->clear();
   else
-    vertexCandidates_.reset(new PFDisplacedVertexCandidateCollection);
+    vertexCandidates_ = std::make_unique<PFDisplacedVertexCandidateCollection>();
 
   vertexCandidates_->reserve(vertexCandidatesSize_);
   for (IE ie = eventTracks_.begin(); ie != eventTracks_.end();) {

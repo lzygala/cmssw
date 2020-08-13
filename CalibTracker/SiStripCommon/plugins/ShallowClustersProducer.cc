@@ -1,17 +1,55 @@
-#include "CalibTracker/SiStripCommon/interface/ShallowClustersProducer.h"
-
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "RecoLocalTracker/SiStripClusterizer/interface/SiStripClusterInfo.h"
 #include "DataFormats/SiStripDigi/interface/SiStripProcessedRawDigi.h"
 #include "DataFormats/Common/interface/DetSetVectorNew.h"
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
 #include "Geometry/Records/interface/TrackerTopologyRcd.h"
 #include "DataFormats/SiStripDetId/interface/SiStripDetId.h"
+#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Utilities/interface/InputTag.h"
+#include "FWCore/Utilities/interface/EDGetToken.h"
+#include "DataFormats/Common/interface/DetSetVector.h"
+#include "DataFormats/Common/interface/DetSetVectorNew.h"
+#include "DataFormats/SiStripCluster/interface/SiStripCluster.h"
+#include "RecoLocalTracker/SiStripClusterizer/interface/SiStripClusterInfo.h"
+
+class ShallowClustersProducer : public edm::EDProducer {
+public:
+  explicit ShallowClustersProducer(const edm::ParameterSet&);
+
+private:
+  edm::InputTag theClustersLabel;
+  std::string Prefix;
+  void produce(edm::Event&, const edm::EventSetup&) override;
+
+  struct moduleVars {
+    moduleVars(uint32_t, const TrackerTopology*);
+    int subdetid, side, layerwheel, stringringrod, petal, stereo;
+    uint32_t module;
+  };
+
+  struct NearDigis {
+    NearDigis(const SiStripClusterInfo&);
+    NearDigis(const SiStripClusterInfo&, const edm::DetSetVector<SiStripProcessedRawDigi>&);
+    float max, left, right, first, last, Lleft, Rright;
+    float etaX() const { return ((left + right) / max) / 2.; }
+    float eta() const { return right > left ? max / (max + right) : left / (left + max); }
+    float etaasymm() const { return right > left ? (right - max) / (right + max) : (max - left) / (max + left); }
+    float outsideasymm() const { return (last - first) / (last + first); }
+  };
+
+  edm::EDGetTokenT<edmNew::DetSetVector<SiStripCluster>> theClustersToken_;
+  edm::EDGetTokenT<edm::DetSetVector<SiStripProcessedRawDigi>> theDigisToken_;
+  SiStripClusterInfo siStripClusterInfo_;
+};
+
+#include "FWCore/Framework/interface/MakerMacros.h"
+DEFINE_FWK_MODULE(ShallowClustersProducer);
 
 ShallowClustersProducer::ShallowClustersProducer(const edm::ParameterSet& iConfig)
-    : Prefix(iConfig.getParameter<std::string>("Prefix")) {
+    : Prefix(iConfig.getParameter<std::string>("Prefix")), siStripClusterInfo_(consumesCollector()) {
   produces<std::vector<unsigned>>(Prefix + "number");
   produces<std::vector<unsigned>>(Prefix + "width");
   produces<std::vector<float>>(Prefix + "variance");
@@ -58,6 +96,8 @@ void ShallowClustersProducer::produce(edm::Event& iEvent, const edm::EventSetup&
   edm::ESHandle<TrackerTopology> tTopoHandle;
   iSetup.get<TrackerTopologyRcd>().get(tTopoHandle);
   const TrackerTopology* const tTopo = tTopoHandle.product();
+
+  siStripClusterInfo_.initEvent(iSetup);
 
   auto number = std::make_unique<std::vector<unsigned>>(7, 0);
   auto width = std::make_unique<std::vector<unsigned>>();
@@ -110,7 +150,8 @@ void ShallowClustersProducer::produce(edm::Event& iEvent, const edm::EventSetup&
     const moduleVars moduleV(id, tTopo);
     for (edmNew::DetSet<SiStripCluster>::const_iterator cluster = itClusters->begin(); cluster != itClusters->end();
          ++cluster) {
-      const SiStripClusterInfo info(*cluster, iSetup, id);
+      siStripClusterInfo_.setCluster(*cluster, id);
+      const SiStripClusterInfo& info = siStripClusterInfo_;
       const NearDigis digis = rawProcessedDigis.isValid() ? NearDigis(info, *rawProcessedDigis) : NearDigis(info);
 
       (number->at(0))++;

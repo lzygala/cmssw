@@ -21,7 +21,6 @@
 #include "DataFormats/L1CSCTrackFinder/interface/CSCTriggerContainer.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "L1Trigger/CSCTrackFinder/src/CSCTFDTReceiver.h"
 
@@ -66,7 +65,6 @@ private:
 protected:
   void analyze(edm::Event const& e, edm::EventSetup const& iSetup) override;
   void bookHistograms(DQMStore::IBooker& ibooker, edm::Run const&, edm::EventSetup const&) override;
-  void dqmBeginRun(edm::Run const&, edm::EventSetup const&) override;
 
 public:
   explicit L1TdeCSCTF(edm::ParameterSet const& pset);

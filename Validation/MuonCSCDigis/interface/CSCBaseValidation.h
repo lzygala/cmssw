@@ -1,5 +1,5 @@
-#ifndef CSCBaseValidation_h
-#define CSCBaseValidation_h
+#ifndef Validation_MuonCSCDigis_CSCBaseValidation_h
+#define Validation_MuonCSCDigis_CSCBaseValidation_h
 
 // user include files
 
@@ -14,6 +14,9 @@
 
 class CSCBaseValidation {
 public:
+  typedef dqm::legacy::DQMStore DQMStore;
+  typedef dqm::legacy::MonitorElement MonitorElement;
+
   CSCBaseValidation(const edm::InputTag &inputTag);
   virtual ~CSCBaseValidation() {}
   void setGeometry(const CSCGeometry *geom) { theCSCGeometry = geom; }

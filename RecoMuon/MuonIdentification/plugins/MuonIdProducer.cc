@@ -445,7 +445,7 @@ void MuonIdProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) 
 
   // muons first - no cleaning, take as is.
   if (muonCollectionHandle_.isValid()) {
-    for (const auto muon : *muonCollectionHandle_) {
+    for (const auto& muon : *muonCollectionHandle_) {
       outputMuons->push_back(muon);
     }
   }
@@ -506,7 +506,7 @@ void MuonIdProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) 
         continue;
       // check if this muon is already in the list
       bool newMuon = true;
-      for (auto muon : *outputMuons) {
+      for (const auto& muon : *outputMuons) {
         if (muon.track() == iLink.trackerTrack() && muon.standAloneMuon() == iLink.standAloneTrack() &&
             muon.combinedMuon() == iLink.globalTrack()) {
           newMuon = false;

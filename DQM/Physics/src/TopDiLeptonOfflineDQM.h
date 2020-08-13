@@ -1,12 +1,10 @@
 #ifndef TOPDILEPTONOFFLINEDQM
 #define TOPDILEPTONOFFLINEDQM
 
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
+
 #include <string>
 #include <vector>
-
-#include "FWCore/Framework/interface/Event.h"
-#include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/JetReco/interface/Jet.h"
@@ -48,6 +46,8 @@
 */
 
 namespace TopDiLeptonOffline {
+  using dqm::legacy::DQMStore;
+  using dqm::legacy::MonitorElement;
 
   class MonitorEnsemble {
   public:
@@ -252,7 +252,6 @@ namespace TopDiLeptonOffline {
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/Common/interface/TriggerResults.h"
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
 
 /**
    \class   TopDiLeptonOfflineDQM TopDiLeptonOfflineDQM.h
@@ -294,7 +293,7 @@ namespace TopDiLeptonOffline {
 /// define MonitorEnsembple to be used
 // using TopDiLeptonOffline::MonitorEnsemble;
 
-class TopDiLeptonOfflineDQM : public DQMEDAnalyzer {
+class TopDiLeptonOfflineDQM : public DQMOneEDAnalyzer<> {
 public:
   /// default constructor
   TopDiLeptonOfflineDQM(const edm::ParameterSet& cfg);

@@ -64,7 +64,6 @@ process.TFileService.fileName = '.oO[outputFile]Oo.'
 ######################################################################
 ######################################################################
 offlineDqmFileOutputTemplate = """
-process.TrackerOfflineValidationSummary.oO[offlineValidationMode]Oo..removeModuleLevelHists = .oO[offlineModuleLevelHistsTransient]Oo.
 process.DqmSaverTkAl.workflow = '.oO[workflow]Oo.'
 process.DqmSaverTkAl.dirName = '.oO[workdir]Oo./.'
 process.DqmSaverTkAl.forceRunNumber = .oO[firstRunNumber]Oo.
@@ -77,7 +76,7 @@ extendedValidationExecution="""
 #run extended offline validation scripts
 echo -e "\n\nRunning extended offline validation"
 
-rfcp .oO[extendedValScriptPath]Oo. .
+cp .oO[extendedValScriptPath]Oo. .
 root -x -b -q -l TkAlExtendedOfflineValidation.C
 
 """

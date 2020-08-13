@@ -31,7 +31,6 @@ namespace cms {
 }
 
 class DDDWorld;
-class MagneticField;
 
 class G4MTRunManagerKernel;
 class G4Run;
@@ -60,7 +59,8 @@ public:
   explicit RunManagerMT(edm::ParameterSet const&);
   ~RunManagerMT();
 
-  void initG4(const DDCompactView*, const cms::DDCompactView*, const MagneticField*, const HepPDT::ParticleDataTable*);
+  //  void initG4(const DDCompactView*, const cms::DDCompactView*, const MagneticField*, const HepPDT::ParticleDataTable*);
+  void initG4(const DDCompactView*, const cms::DDCompactView*, const HepPDT::ParticleDataTable*);
 
   void initializeUserActions();
 
@@ -88,11 +88,10 @@ private:
 
   G4MTRunManagerKernel* m_kernel;
 
-  std::unique_ptr<CustomUIsession> m_UIsession;
+  CustomUIsession* m_UIsession;
   std::unique_ptr<PhysicsList> m_physicsList;
   bool m_managerInitialized;
   bool m_runTerminated;
-  bool m_pUseMagneticField;
   RunAction* m_userRunAction;
   G4Run* m_currentRun;
   G4StateManager* m_stateManager;
@@ -103,6 +102,7 @@ private:
   const std::string m_PhysicsTablesDir;
   bool m_StorePhysicsTables;
   bool m_RestorePhysicsTables;
+  bool m_UseParametrisedEMPhysics;
   bool m_check;
   edm::ParameterSet m_pPhysics;
   edm::ParameterSet m_pRunAction;

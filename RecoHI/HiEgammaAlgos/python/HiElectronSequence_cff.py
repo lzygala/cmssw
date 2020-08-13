@@ -3,24 +3,17 @@ import FWCore.ParameterSet.Config as cms
 
 # creates the recoGsfTracks_electronGsfTracks__RECO = input GSF tracks
 from TrackingTools.GsfTracking.GsfElectronTracking_cff import *
-ecalDrivenElectronSeeds.SeedConfiguration.initialSeeds = "hiPixelTrackSeeds"
+ecalDrivenElectronSeeds.initialSeedsVector = cms.VInputTag(cms.InputTag("hiPixelTrackSeeds"))
 electronCkfTrackCandidates.src = "ecalDrivenElectronSeeds"
 
-ecalDrivenElectronSeeds.SeedConfiguration.maxHOverEBarrel = cms.double(0.25)
-ecalDrivenElectronSeeds.SeedConfiguration.maxHOverEEndcaps = cms.double(0.25)
+ecalDrivenElectronSeeds.maxHOverEBarrel = cms.double(0.25)
+ecalDrivenElectronSeeds.maxHOverEEndcaps = cms.double(0.25)
 
-electronGsfTrackingHi = cms.Sequence(ecalDrivenElectronSeeds *
-                                     electronCkfTrackCandidates *
+electronGsfTrackingHiTask = cms.Task(ecalDrivenElectronSeeds ,
+                                     electronCkfTrackCandidates ,
                                      electronGsfTracks)
 
-# run the supercluster(EE+EB)-GSF track association ==> output: recoGsfElectrons_gsfElectrons__RECO
 from RecoEgamma.EgammaElectronProducers.gsfElectronSequence_cff import *
-from RecoParticleFlow.PFProducer.pfElectronTranslator_cff import *
-gsfElectrons.ctfTracks     = cms.InputTag("hiGeneralTracks")
-gsfElectronCores.ctfTracks = cms.InputTag("hiGeneralTracks")
-pfElectronTranslator.emptyIsOk = cms.bool(True)
-
-gsfElectrons.fillConvVtxFitProb = cms.bool(False)
 
 ecalDrivenGsfElectrons.ctfTracksTag = cms.InputTag("hiGeneralTracks")
 ecalDrivenGsfElectronCores.ctfTracks = cms.InputTag("hiGeneralTracks")
@@ -44,8 +37,9 @@ from RecoParticleFlow.PFTracking.pfTrackElec_cfi import *
 pfTrackElec.applyGsfTrackCleaning = cms.bool(True)
 pfTrackElec.PrimaryVertexLabel = cms.InputTag("hiSelectedVertex")
 
-hiElectronSequence = cms.Sequence(electronGsfTrackingHi *                                 
-                                  pfTrack *
-                                  pfTrackElec *
-                                  gsfEcalDrivenElectronSequence 
-                                  )
+hiElectronTask = cms.Task(electronGsfTrackingHiTask ,   
+                          pfTrack ,
+                          pfTrackElec ,
+                          gsfEcalDrivenElectronTask 
+                          )
+hiElectronSequence = cms.Sequence(hiElectronTask)

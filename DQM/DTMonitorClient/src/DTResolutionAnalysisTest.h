@@ -13,6 +13,7 @@
  */
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 #include <FWCore/Framework/interface/LuminosityBlock.h>
 
 #include <FWCore/Framework/interface/EDAnalyzer.h>
@@ -25,8 +26,6 @@
 
 class DTGeometry;
 class DTSuperLayerId;
-class DQMStore;
-class MonitorElement;
 
 class DTResolutionAnalysisTest : public DQMEDHarvester {
 public:
@@ -77,6 +76,9 @@ private:
 
   std::map<int, MonitorElement*> meanDistr;
   std::map<int, MonitorElement*> sigmaDistr;
+
+  // wheel and ring mean histograms
+  std::map<int, std::map<int, std::map<std::string, MonitorElement*> > > wheelRingHistos;
 
   // Compute the station from the bin number of mean and sigma histos
   int stationFromBin(int bin) const;

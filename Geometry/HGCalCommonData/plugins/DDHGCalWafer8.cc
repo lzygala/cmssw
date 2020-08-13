@@ -1,13 +1,45 @@
-#include "Geometry/HGCalCommonData/plugins/DDHGCalWafer8.h"
+#include "DetectorDescription/Core/interface/DDAlgorithm.h"
+#include "DetectorDescription/Core/interface/DDAlgorithmFactory.h"
 #include "DetectorDescription/Core/interface/DDCurrentNamespace.h"
 #include "DetectorDescription/Core/interface/DDLogicalPart.h"
 #include "DetectorDescription/Core/interface/DDMaterial.h"
 #include "DetectorDescription/Core/interface/DDSolid.h"
 #include "DetectorDescription/Core/interface/DDSplit.h"
+#include "DetectorDescription/Core/interface/DDTypes.h"
 #include "DetectorDescription/Core/interface/DDutils.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/PluginManager/interface/PluginFactory.h"
+#include "Geometry/HGCalCommonData/interface/HGCalTypes.h"
+
+#include <string>
+#include <vector>
 
 //#define EDM_ML_DEBUG
+
+class DDHGCalWafer8 : public DDAlgorithm {
+public:
+  // Constructor and Destructor
+  DDHGCalWafer8();
+  ~DDHGCalWafer8() override;
+
+  void initialize(const DDNumericArguments& nArgs,
+                  const DDVectorArguments& vArgs,
+                  const DDMapArguments& mArgs,
+                  const DDStringArguments& sArgs,
+                  const DDStringVectorArguments& vsArgs) override;
+  void execute(DDCompactView& cpv) override;
+
+private:
+  double waferSize_;                    // Wafer size
+  double waferT_;                       // Wafer thickness
+  double waferSepar_;                   // Sensor separation
+  double mouseBite_;                    // MouseBite radius
+  int nCells_;                          // Half number of cells along u-v axis
+  int cellType_;                        // Cell Type (0,1,2: Fine, Course 2/3)
+  std::string material_;                // Material name for module with gap
+  std::vector<std::string> cellNames_;  // Name of the cells
+  std::string nameSpace_;               // Namespace to be used
+};
 
 DDHGCalWafer8::DDHGCalWafer8() {
 #ifdef EDM_ML_DEBUG
@@ -17,11 +49,11 @@ DDHGCalWafer8::DDHGCalWafer8() {
 
 DDHGCalWafer8::~DDHGCalWafer8() {}
 
-void DDHGCalWafer8::initialize(const DDNumericArguments &nArgs,
-                               const DDVectorArguments &,
-                               const DDMapArguments &,
-                               const DDStringArguments &sArgs,
-                               const DDStringVectorArguments &vsArgs) {
+void DDHGCalWafer8::initialize(const DDNumericArguments& nArgs,
+                               const DDVectorArguments&,
+                               const DDMapArguments&,
+                               const DDStringArguments& sArgs,
+                               const DDStringVectorArguments& vsArgs) {
   waferSize_ = nArgs["WaferSize"];
   waferT_ = nArgs["WaferThick"];
   waferSepar_ = nArgs["SensorSeparation"];
@@ -42,7 +74,7 @@ void DDHGCalWafer8::initialize(const DDNumericArguments &nArgs,
 #endif
 }
 
-void DDHGCalWafer8::execute(DDCompactView &cpv) {
+void DDHGCalWafer8::execute(DDCompactView& cpv) {
 #ifdef EDM_ML_DEBUG
   edm::LogVerbatim("HGCalGeom") << "==>> Executing DDHGCalWafer8...";
 #endif
@@ -105,7 +137,7 @@ void DDHGCalWafer8::execute(DDCompactView &cpv) {
         else if (v == 0)
           cell = 6;
         DDTranslation tran(xp, yp, 0);
-        int copy = (cellType_ * 100 + v) * 100 + u;
+        int copy = HGCalTypes::packCellTypeUV(cellType_, u, v);
         cpv.position(DDName(cellNames_[cell]), glog, copy, tran, rot);
 #ifdef EDM_ML_DEBUG
         edm::LogVerbatim("HGCalGeom") << "DDHGCalWafer8: " << cellNames_[cell] << " number " << copy << " position in "
@@ -115,3 +147,5 @@ void DDHGCalWafer8::execute(DDCompactView &cpv) {
     }
   }
 }
+
+DEFINE_EDM_PLUGIN(DDAlgorithmFactory, DDHGCalWafer8, "hgcal:DDHGCalWafer8");

@@ -10,7 +10,6 @@
 
 #include "DQMServices/Core/interface/DQMEDAnalyzer.h"
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
@@ -32,7 +31,7 @@
 #include "FWCore/Utilities/interface/EDMException.h"
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 
 #include <ctime>
@@ -375,12 +374,6 @@ void PixelLumiDQM::bookHistograms(DQMStore::IBooker &ibooker,
     }
   }
 }
-
-// ------------ Method called when ending the processing of a run.  ------------
-void PixelLumiDQM::dqmBeginRun(edm::Run const &, edm::EventSetup const &) {}
-
-// ------------ Method called when ending the processing of a run.  ------------
-void PixelLumiDQM::endRun(edm::Run const &, edm::EventSetup const &) {}
 
 // ------------ Method called when starting to process a luminosity block.
 // ------------

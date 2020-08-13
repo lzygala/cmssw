@@ -43,6 +43,8 @@
 #include "FWCore/Utilities/interface/FriendlyName.h"
 #include "FWCore/Utilities/interface/GlobalIdentifier.h"
 #include "FWCore/Utilities/interface/ReleaseVersion.h"
+#include "FWCore/Utilities/interface/stemFromPath.h"
+#include "FWCore/Utilities/interface/thread_safety_macros.h"
 #include "FWCore/Version/interface/GetReleaseVersion.h"
 #include "IOPool/Common/interface/getWrapperBasePtr.h"
 
@@ -164,7 +166,8 @@ namespace edm {
                      bool bypassVersionCheck,
                      bool labelRawDataLikeMC,
                      bool usingGoToEvent,
-                     bool enablePrefetching)
+                     bool enablePrefetching,
+                     bool enforceGUIDInFileName)
       : file_(fileName),
         logicalFile_(logicalFileName),
         processConfiguration_(processConfiguration),
@@ -187,6 +190,7 @@ namespace edm {
         savedRunAuxiliary_(),
         skipAnyEvents_(skipAnyEvents),
         noEventSort_(noEventSort),
+        enforceGUIDInFileName_(enforceGUIDInFileName),
         whyNotFastClonable_(0),
         hasNewlyDroppedBranch_(),
         branchListIndexesUnchanged_(false),
@@ -243,6 +247,7 @@ namespace edm {
     treePointers_[InEvent] = &eventTree_;
     treePointers_[InLumi] = &lumiTree_;
     treePointers_[InRun] = &runTree_;
+    treePointers_[InProcess] = nullptr;
 
     // Read the metadata tree.
     // We use a smart pointer so the tree will be deleted after use, and not kept for the life of the file.
@@ -499,6 +504,10 @@ namespace edm {
     for (auto& product : pList) {
       BranchDescription& prod = product.second;
       prod.init();
+      if (prod.branchType() == InProcess) {
+        // ProcessBlock input not implemented yet
+        continue;
+      }
       treePointers_[prod.branchType()]->setPresence(prod, newBranchToOldBranch(prod.branchName()));
     }
 
@@ -555,12 +564,20 @@ namespace edm {
 
       int i = 0;
       for (auto t : treePointers_) {
+        if (t == nullptr) {
+          // ProcessBlock input not implemented yet
+          continue;
+        }
         t->numberOfBranchesToAdd(nBranches[i]);
         ++i;
       }
     }
     for (auto const& product : prodList) {
       BranchDescription const& prod = product.second;
+      if (prod.branchType() == InProcess) {
+        // ProcessBlock input not implemented yet
+        continue;
+      }
       treePointers_[prod.branchType()]->addBranch(prod, newBranchToOldBranch(prod.branchName()));
     }
 
@@ -744,6 +761,7 @@ namespace edm {
     if (indexIntoFileIter_ == indexIntoFileEnd_) {
       return false;
     }
+
     if (eventSkipperByID_ && eventSkipperByID_->somethingToSkip()) {
       // See first if the entire lumi or run is skipped, so we won't have to read the event Auxiliary in that case.
       if (eventSkipperByID_->skipIt(indexIntoFileIter_.run(), indexIntoFileIter_.lumi(), 0U)) {
@@ -760,18 +778,16 @@ namespace edm {
 
       // Skip runs with no lumis if either lumisToSkip or lumisToProcess have been set to select lumis
       if (indexIntoFileIter_.getEntryType() == IndexIntoFile::kRun && eventSkipperByID_->skippingLumis()) {
-        IndexIntoFile::IndexIntoFileItr iterLumi = indexIntoFileIter_;
-
         // There are no lumis in this run, not even ones we will skip
-        if (iterLumi.peekAheadAtLumi() == IndexIntoFile::invalidLumi) {
+        if (indexIntoFileIter_.peekAheadAtLumi() == IndexIntoFile::invalidLumi) {
           return true;
         }
         // If we get here there are lumis in the run, check to see if we are skipping all of them
         do {
-          if (!eventSkipperByID_->skipIt(iterLumi.run(), iterLumi.peekAheadAtLumi(), 0U)) {
+          if (!eventSkipperByID_->skipIt(indexIntoFileIter_.run(), indexIntoFileIter_.peekAheadAtLumi(), 0U)) {
             return false;
           }
-        } while (iterLumi.skipLumiInRun());
+        } while (indexIntoFileIter_.skipLumiInRun());
         return true;
       }
     }
@@ -815,7 +831,7 @@ namespace edm {
     }
     if (entryType == IndexIntoFile::kRun) {
       run = indexIntoFileIter_.run();
-      runHelper_->checkForNewRun(run);
+      runHelper_->checkForNewRun(run, indexIntoFileIter_.peekAheadAtLumi());
       return IndexIntoFile::kRun;
     } else if (processingMode_ == InputSource::Runs) {
       indexIntoFileIter_.advanceToNextRun();
@@ -1139,6 +1155,14 @@ namespace edm {
       throw Exception(errors::EventCorruption) << "'Events' tree is corrupted or not present\n"
                                                << "in the input file.\n";
     }
+    if (enforceGUIDInFileName_) {
+      auto guidFromName = stemFromPath(file_);
+      if (guidFromName != fid_.fid()) {
+        throw edm::Exception(edm::errors::FileNameInconsistentWithGUID)
+            << "GUID " << guidFromName << " extracted from file name " << file_
+            << " is inconsistent with the GUID read from the file " << fid_.fid();
+      }
+    }
 
     if (fileFormatVersion().hasIndexIntoFile()) {
       if (runTree().entries() > 0) {
@@ -1189,6 +1213,10 @@ namespace edm {
     // Just to play it safe, zero all pointers to objects in the InputFile to be closed.
     eventHistoryTree_ = nullptr;
     for (auto& treePointer : treePointers_) {
+      if (treePointer == nullptr) {
+        // ProcessBlock input not implemented yet
+        continue;
+      }
       treePointer->close();
       treePointer = nullptr;
     }
@@ -1450,8 +1478,9 @@ namespace edm {
 
     // We're not done ... so prepare the EventPrincipal
     eventTree_.insertEntryForIndex(principal.transitionIndex());
+    auto history = processHistoryRegistry_->getMapped(eventAux().processHistoryID());
     principal.fillEventPrincipal(eventAux(),
-                                 *processHistoryRegistry_,
+                                 history,
                                  std::move(eventSelectionIDs_),
                                  std::move(branchListIndexes_),
                                  *(makeProductProvenanceRetriever(principal.streamID().value())),
@@ -1466,8 +1495,9 @@ namespace edm {
 
   std::shared_ptr<RunAuxiliary> RootFile::readRunAuxiliary_() {
     if (runHelper_->fakeNewRun()) {
-      runHelper_->overrideRunNumber(savedRunAuxiliary_->id());
-      return savedRunAuxiliary();
+      auto runAuxiliary = std::make_shared<RunAuxiliary>(*savedRunAuxiliary());
+      runHelper_->overrideRunNumber(runAuxiliary->id());
+      return runAuxiliary;
     }
     assert(indexIntoFileIter_ != indexIntoFileEnd_);
     assert(indexIntoFileIter_.getEntryType() == IndexIntoFile::kRun);
@@ -1604,7 +1634,8 @@ namespace edm {
     lumiTree_.setEntryNumber(indexIntoFileIter_.entry());
     // NOTE: we use 0 for the index since do not do delayed reads for LuminosityBlockPrincipals
     lumiTree_.insertEntryForIndex(0);
-    lumiPrincipal.fillLuminosityBlockPrincipal(*processHistoryRegistry_, lumiTree_.resetAndGetRootDelayedReader());
+    auto history = processHistoryRegistry_->getMapped(lumiPrincipal.aux().processHistoryID());
+    lumiPrincipal.fillLuminosityBlockPrincipal(history, lumiTree_.resetAndGetRootDelayedReader());
     // Read in all the products now.
     lumiPrincipal.readAllFromSourceAndMergeImmediately();
     ++indexIntoFileIter_;
@@ -1770,7 +1801,10 @@ namespace edm {
                                    << "of file '" << file_ << "' because it is dependent on a branch\n"
                                    << "that was explicitly dropped.\n";
           }
-          treePointers_[prod.branchType()]->dropBranch(newBranchToOldBranch(prod.branchName()));
+          // ProcessBlock input is not implemented yet
+          if (prod.branchType() != InProcess) {
+            treePointers_[prod.branchType()]->dropBranch(newBranchToOldBranch(prod.branchName()));
+          }
           hasNewlyDroppedBranch_[prod.branchType()] = true;
         }
         ProductRegistry::ProductList::iterator icopy = it;
@@ -1786,7 +1820,7 @@ namespace edm {
       TString tString;
       for (ProductRegistry::ProductList::iterator it = prodList.begin(), itEnd = prodList.end(); it != itEnd;) {
         BranchDescription const& prod = it->second;
-        if (prod.branchType() != InEvent) {
+        if (prod.branchType() != InEvent && prod.branchType() != InProcess) {
           TClass* cp = prod.wrappedType().getClass();
           void* p = cp->New();
           int offset = cp->GetBaseClassOffset(edProductClass_);
@@ -1994,7 +2028,8 @@ namespace edm {
 
     RootTree* rootTree_;
     ProductProvenanceVector infoVector_;
-    mutable ProductProvenanceVector* pInfoVector_;
+    //All access to a ROOT file is serialized
+    CMS_SA_ALLOW mutable ProductProvenanceVector* pInfoVector_;
     DaqProvenanceHelper const* daqProvenanceHelper_;
     std::shared_ptr<std::recursive_mutex> mutex_;
     SharedResourcesAcquirer acquirer_;
@@ -2059,7 +2094,8 @@ namespace edm {
 
     edm::propagate_const<RootTree*> rootTree_;
     std::vector<EventEntryInfo> infoVector_;
-    mutable std::vector<EventEntryInfo>* pInfoVector_;
+    //All access to ROOT file are serialized
+    CMS_SA_ALLOW mutable std::vector<EventEntryInfo>* pInfoVector_;
     EntryDescriptionMap const& entryDescriptionMap_;
     DaqProvenanceHelper const* daqProvenanceHelper_;
     std::shared_ptr<std::recursive_mutex> mutex_;

@@ -36,8 +36,8 @@ namespace ecaldqm {
     // Flags the Client ME to run as lumibased:
     // In offline mode will save the ME client at the end of the LS
     // See: EcalDQMonitorClient::dqmEndLuminosityBlock
-    for (MESetCollection::iterator mItr(MEs_.begin()); mItr != MEs_.end(); ++mItr) {
-      if (mItr->second->getLumiFlag()) {
+    for (auto& mItr : MEs_) {
+      if (mItr.second->getLumiFlag()) {
         hasLumiPlots_ = true;
         break;
       }
@@ -111,27 +111,27 @@ namespace ecaldqm {
   }
 
   void DQWorkerClient::resetMEs() {
-    for (MESetCollection::iterator mItr(MEs_.begin()); mItr != MEs_.end(); ++mItr) {
-      MESet* meset(mItr->second);
+    for (auto& mItr : MEs_) {
+      MESet* meset(mItr.second.get());
 
       // Protects Trend-type Client MEs from being reset at the end of the LS
       // See: EcalDQMonitorClient::runWorkers
       if (meset->getBinType() == ecaldqm::binning::kTrend)
         continue;
 
-      if (qualitySummaries_.find(mItr->first) != qualitySummaries_.end()) {
+      if (qualitySummaries_.find(mItr.first) != qualitySummaries_.end()) {
         MESetMulti* multi(dynamic_cast<MESetMulti*>(meset));
         if (multi) {
           for (unsigned iS(0); iS < multi->getMultiplicity(); ++iS) {
             multi->use(iS);
-            if (multi->getKind() == MonitorElement::DQM_KIND_TH2F) {
+            if (multi->getKind() == MonitorElement::Kind::TH2F) {
               multi->resetAll(-1.);
               multi->reset(kUnknown);
             } else
               multi->reset(-1.);
           }
         } else {
-          if (meset->getKind() == MonitorElement::DQM_KIND_TH2F) {
+          if (meset->getKind() == MonitorElement::Kind::TH2F) {
             meset->resetAll(-1.);
             meset->reset(kUnknown);
           } else
@@ -147,7 +147,6 @@ namespace ecaldqm {
       int i = 0;
       while (auto me = meset.second->getME(i)) {
         if (me->getLumiFlag()) {
-          std::cout << "+++ reset " << me->getFullname() << "\n";
           // reset per-lumi histograms in offline harvesting so that they only show
           // data of the current lumisection.
           me->Reset();

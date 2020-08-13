@@ -25,18 +25,14 @@
 
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
-#include <DQMServices/Core/interface/DQMEDAnalyzer.h>
+#include <DQMServices/Core/interface/DQMOneEDAnalyzer.h>
 
 #include <string>
 #include <map>
 #include <vector>
 
-class DQMStore;
-class MonitorElement;
-
-class DTChamberEfficiencyTask : public one::DQMEDAnalyzer<edm::one::WatchLuminosityBlocks> {
+class DTChamberEfficiencyTask : public DQMOneEDAnalyzer<edm::one::WatchLuminosityBlocks> {
 public:
   /// Constructor
   DTChamberEfficiencyTask(const edm::ParameterSet& pset);

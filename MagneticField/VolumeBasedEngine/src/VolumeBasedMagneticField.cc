@@ -11,15 +11,16 @@ VolumeBasedMagneticField::VolumeBasedMagneticField(int geomVersion,
                                                    const MagneticField* param,
                                                    bool isParamFieldOwned)
     : field(new MagGeometry(geomVersion, theBLayers, theESectors, theBVolumes, theEVolumes)),
-      maxR(rMax),
+      maxRsq(rMax * rMax),
       maxZ(zMax),
       paramField(param),
       magGeomOwned(true),
       paramFieldOwned(isParamFieldOwned) {}
 
 VolumeBasedMagneticField::VolumeBasedMagneticField(const VolumeBasedMagneticField& vbf)
-    : field(vbf.field),
-      maxR(vbf.maxR),
+    : MagneticField::MagneticField(vbf),
+      field(vbf.field),
+      maxRsq(vbf.maxRsq),
       maxZ(vbf.maxZ),
       paramField(vbf.paramField),
       magGeomOwned(false),
@@ -58,7 +59,5 @@ GlobalVector VolumeBasedMagneticField::inTeslaUnchecked(const GlobalPoint& gp) c
 const MagVolume* VolumeBasedMagneticField::findVolume(const GlobalPoint& gp) const { return field->findVolume(gp); }
 
 bool VolumeBasedMagneticField::isDefined(const GlobalPoint& gp) const {
-  return (fabs(gp.z()) < maxZ && gp.perp() < maxR);
+  return (fabs(gp.z()) < maxZ && gp.perp2() < maxRsq);
 }
-
-bool VolumeBasedMagneticField::isZSymmetric() const { return field->isZSymmetric(); }

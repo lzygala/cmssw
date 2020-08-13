@@ -31,10 +31,10 @@
 #include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
 #include "Geometry/CommonTopologies/interface/StripTopology.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetType.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetType.h"
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetType.h"
 
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "DataFormats/GeometrySurface/interface/BoundSurface.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
@@ -191,8 +191,21 @@ void ModuleNumbering::analyze(const edm::Event& iEvent, const edm::EventSetup& i
   edm::ESHandle<std::vector<GeometricDetExtra> > rDDE;
   iSetup.get<IdealGeometryRecord>().get(rDD);
   iSetup.get<IdealGeometryRecord>().get(rDDE);
-  edm::LogInfo("ModuleNumbering") << " Top node is  " << rDD.product() << " " << rDD.product()->name().name()
-                                  << std::endl;
+  edm::LogInfo("ModuleNumbering") << " Top node is  " << rDD.product() << " " << rDD.product()->name() << std::endl;
+  edm::LogInfo("ModuleNumbering") << "    radLength " << rDD.product()->radLength() << "\n"
+                                  << "           xi " << rDD.product()->xi() << "\n"
+                                  << " PixelROCRows " << rDD.product()->pixROCRows() << "\n"
+                                  << "   PixROCCols " << rDD.product()->pixROCCols() << "\n"
+                                  << "   PixelROC_X " << rDD.product()->pixROCx() << "\n"
+                                  << "   PixelROC_Y " << rDD.product()->pixROCy() << "\n"
+                                  << "TrackerStereoDetectors " << (rDD.product()->stereo() ? "true" : "false") << "\n"
+                                  << "SiliconAPVNumber " << rDD.product()->siliconAPVNum() << "\n";
+  std::vector<int> nv = rDD.product()->navType();
+  edm::LogInfo("ModuleNumbering").log([&](auto& log) {
+    for (auto it : nv)
+      log << it << ", ";
+  });
+
   edm::LogInfo("ModuleNumbering") << " And Contains  Daughters: " << rDD.product()->deepComponents().size()
                                   << std::endl;
   CmsTrackerDebugNavigator nav(*rDDE.product());
@@ -320,7 +333,7 @@ void ModuleNumbering::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 
                     // Module Info
 
-                    std::string name = mapDetIdToGeometricDet[myDetId]->name().name();
+                    std::string name = mapDetIdToGeometricDet[myDetId]->name();
                     unsigned int theLayer = tTopo->tibLayer(rawid);
                     std::vector<unsigned int> theString = tTopo->tibStringInfo(rawid);
                     unsigned int theModule = tTopo->tibModule(rawid);
@@ -516,7 +529,7 @@ void ModuleNumbering::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 
                     // Module Info
 
-                    std::string name = mapDetIdToGeometricDet[myDetId]->name().name();
+                    std::string name = mapDetIdToGeometricDet[myDetId]->name();
                     unsigned int theDisk = tTopo->tidWheel(rawid);
                     unsigned int theRing = tTopo->tidRing(rawid);
                     std::vector<unsigned int> theModule = tTopo->tidModuleInfo(rawid);
@@ -702,7 +715,7 @@ void ModuleNumbering::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 
                   // Module Info
 
-                  std::string name = mapDetIdToGeometricDet[myDetId]->name().name();
+                  std::string name = mapDetIdToGeometricDet[myDetId]->name();
                   unsigned int theLayer = tTopo->tobLayer(rawid);
                   std::vector<unsigned int> theRod = tTopo->tobRodInfo(rawid);
                   unsigned int theModule = tTopo->tobModule(rawid);
@@ -984,7 +997,7 @@ void ModuleNumbering::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 
                       // Module Info
 
-                      std::string name = mapDetIdToGeometricDet[myDetId]->name().name();
+                      std::string name = mapDetIdToGeometricDet[myDetId]->name();
                       unsigned int theWheel = tTopo->tecWheel(rawid);
                       unsigned int theModule = tTopo->tecModule(rawid);
                       std::vector<unsigned int> thePetal = tTopo->tecPetalInfo(rawid);

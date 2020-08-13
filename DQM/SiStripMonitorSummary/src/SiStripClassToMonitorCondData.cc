@@ -19,7 +19,6 @@
 #include "DQM/SiStripCommon/interface/SiStripFolderOrganizer.h"
 #include "DQM/SiStripCommon/interface/SiStripHistoId.h"
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "DQM/SiStripMonitorSummary/interface/SiStripClassToMonitorCondData.h"
 
@@ -299,7 +298,6 @@ void SiStripClassToMonitorCondData::endRun(edm::EventSetup const &eSetup) {
   DQMStore *dqmStore_ = edm::Service<DQMStore>().operator->();
 
   if (outputMEsInRootFile) {
-    dqmStore_->showDirStructure();
     dqmStore_->save(outputFileName);
   }
 

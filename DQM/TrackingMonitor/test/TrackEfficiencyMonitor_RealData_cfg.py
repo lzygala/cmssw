@@ -23,7 +23,7 @@ process.load("Configuration.StandardSequences.GeometryRecoDB_cff")
 process.load("Configuration.StandardSequences.Reconstruction_cff")
 process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load("RecoMuon.DetLayers.muonDetLayerGeometry_cfi")
-process.load("Geometry.CommonDetUnit.bareGlobalTrackingGeometry_cfi")
+process.load("Geometry.CommonTopologies.bareGlobalTrackingGeometry_cfi")
 process.load("RecoMuon.TrackingTools.MuonServiceProxy_cff")
 
 process.load("RecoLocalTracker.Configuration.RecoLocalTracker_cff")
@@ -44,7 +44,6 @@ process.MessageLogger = cms.Service("MessageLogger",
 )
 
 process.DQMStore = cms.Service("DQMStore",
-    referenceFileName = cms.untracked.string(''),
     verbose = cms.untracked.int32(0)
 )
 

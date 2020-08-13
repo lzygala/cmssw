@@ -2,8 +2,8 @@
 #define FWCore_Framework_ProductRegistryHelper_h
 
 /*----------------------------------------------------------------------
-  
-ProductRegistryHelper: 
+
+ProductRegistryHelper:
 
 ----------------------------------------------------------------------*/
 
@@ -163,9 +163,14 @@ namespace edm {
       return BranchAliasSetter{typeLabelList_.back(), EDPutToken{index}};
     }
 
-    virtual bool hasAbilityToProduceInRuns() const { return false; }
+    virtual bool hasAbilityToProduceInBeginProcessBlocks() const { return false; }
+    virtual bool hasAbilityToProduceInEndProcessBlocks() const { return false; }
 
-    virtual bool hasAbilityToProduceInLumis() const { return false; }
+    virtual bool hasAbilityToProduceInBeginRuns() const { return false; }
+    virtual bool hasAbilityToProduceInEndRuns() const { return false; }
+
+    virtual bool hasAbilityToProduceInBeginLumis() const { return false; }
+    virtual bool hasAbilityToProduceInEndLumis() const { return false; }
 
   private:
     TypeLabelList typeLabelList_;

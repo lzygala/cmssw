@@ -1,35 +1,26 @@
+
 #include "SimG4Core/Application/interface/RunManagerMT.h"
 #include "SimG4Core/Application/interface/PrimaryTransformer.h"
 #include "SimG4Core/Application/interface/SimRunInterface.h"
 #include "SimG4Core/Application/interface/RunAction.h"
 #include "SimG4Core/Application/interface/ParametrisedEMPhysics.h"
-#include "SimG4Core/Application/interface/CustomUIsession.h"
 #include "SimG4Core/Application/interface/ExceptionHandler.h"
 
 #include "SimG4Core/Geometry/interface/DDDWorld.h"
-#include "SimG4Core/Geometry/interface/G4LogicalVolumeToDDLogicalPartMap.h"
-#include "SimG4Core/Geometry/interface/DDG4ProductionCuts.h"
-
-#include "SimG4Core/SensitiveDetector/interface/AttachSD.h"
+#include "SimG4Core/Geometry/interface/CustomUIsession.h"
 
 #include "SimG4Core/Physics/interface/PhysicsListFactory.h"
 #include "SimG4Core/PhysicsLists/interface/CMSMonopolePhysics.h"
 #include "SimG4Core/CustomPhysics/interface/CMSExoticaPhysics.h"
 
 #include "SimG4Core/Watcher/interface/SimWatcherFactory.h"
-#include "SimG4Core/MagneticField/interface/FieldBuilder.h"
-#include "SimG4Core/MagneticField/interface/Field.h"
-#include "SimG4Core/MagneticField/interface/CMSFieldManager.h"
-
-#include "MagneticField/Engine/interface/MagneticField.h"
 
 #include "SimG4Core/Notification/interface/G4SimEvent.h"
 #include "SimG4Core/Notification/interface/SimTrackManager.h"
 #include "SimG4Core/Notification/interface/BeginOfJob.h"
 #include "SimG4Core/Notification/interface/CurrentG4Track.h"
-#include "SimG4Core/Application/interface/G4RegionReporter.h"
 #include "SimG4Core/Application/interface/CMSGDMLWriteStructure.h"
-#include "SimG4Core/Geometry/interface/G4CheckOverlap.h"
+#include "SimG4Core/Geometry/interface/CMSG4CheckOverlap.h"
 
 #include "DetectorDescription/Core/interface/DDCompactView.h"
 #include "DetectorDescription/DDCMS/interface/DDCompactView.h"
@@ -50,6 +41,8 @@
 #include "G4TransportationManager.hh"
 #include "G4ParticleTable.hh"
 #include "G4CascadeInterface.hh"
+#include "G4EmParameters.hh"
+#include "G4HadronicParameters.hh"
 
 #include "G4GDMLParser.hh"
 #include "G4SystemOfUnits.hh"
@@ -59,8 +52,6 @@
 #include "G4PhysicalVolumeStore.hh"
 #include "G4Region.hh"
 #include "G4RegionStore.hh"
-
-#include "DDG4/Geant4Mapping.h"
 
 #include <iostream>
 #include <sstream>
@@ -72,17 +63,17 @@
 RunManagerMT::RunManagerMT(edm::ParameterSet const& p)
     : m_managerInitialized(false),
       m_runTerminated(false),
-      m_pUseMagneticField(p.getParameter<bool>("UseMagneticField")),
-      m_PhysicsTablesDir(p.getParameter<std::string>("PhysicsTablesDirectory")),
-      m_StorePhysicsTables(p.getParameter<bool>("StorePhysicsTables")),
-      m_RestorePhysicsTables(p.getParameter<bool>("RestorePhysicsTables")),
+      m_PhysicsTablesDir(p.getUntrackedParameter<std::string>("PhysicsTablesDirectory", "")),
+      m_StorePhysicsTables(p.getUntrackedParameter<bool>("StorePhysicsTables", false)),
+      m_RestorePhysicsTables(p.getUntrackedParameter<bool>("RestorePhysicsTables", false)),
+      m_UseParametrisedEMPhysics(p.getUntrackedParameter<bool>("UseParametrisedEMPhysics")),
       m_pPhysics(p.getParameter<edm::ParameterSet>("Physics")),
       m_pRunAction(p.getParameter<edm::ParameterSet>("RunAction")),
-      m_g4overlap(p.getParameter<edm::ParameterSet>("G4CheckOverlap")),
+      m_g4overlap(p.getUntrackedParameter<edm::ParameterSet>("G4CheckOverlap")),
       m_G4Commands(p.getParameter<std::vector<std::string> >("G4Commands")),
       m_p(p) {
   m_currentRun = nullptr;
-  m_UIsession.reset(new CustomUIsession());
+  m_UIsession = new CustomUIsession();
   m_physicsList.reset(nullptr);
   m_world.reset(nullptr);
 
@@ -95,42 +86,35 @@ RunManagerMT::RunManagerMT(edm::ParameterSet const& p)
   m_stateManager->SetExceptionHandler(new ExceptionHandler());
   m_geometryManager->G4GeometryManager::GetInstance();
 
-  m_check = p.getUntrackedParameter<bool>("CheckOverlap", false);
+  m_check = p.getUntrackedParameter<bool>("CheckGeometry", false);
 }
 
-RunManagerMT::~RunManagerMT() { stopG4(); }
+RunManagerMT::~RunManagerMT() {}
 
 void RunManagerMT::initG4(const DDCompactView* pDD,
                           const cms::DDCompactView* pDD4hep,
-                          const MagneticField* pMF,
                           const HepPDT::ParticleDataTable* fPDGTable) {
   if (m_managerInitialized) {
     edm::LogWarning("SimG4CoreApplication") << "RunManagerMT::initG4 was already done - exit";
     return;
   }
-  auto geoFromDD4hep = m_p.getParameter<bool>("g4GeometryDD4hepSource");
-  edm::LogVerbatim("SimG4CoreApplication") << "RunManagerMT: start initialising of geometry DD4Hep: " << geoFromDD4hep;
+  bool geoFromDD4hep = m_p.getParameter<bool>("g4GeometryDD4hepSource");
+  bool cuts = m_pPhysics.getParameter<bool>("CutsPerRegion");
+  bool protonCut = m_pPhysics.getParameter<bool>("CutsOnProton");
+  int verb = std::max(m_pPhysics.getUntrackedParameter<int>("Verbosity", 0),
+                      m_p.getUntrackedParameter<int>("SteppingVerbosity", 0));
+  edm::LogVerbatim("SimG4CoreApplication")
+      << "RunManagerMT: start initialising of geometry DD4Hep: " << geoFromDD4hep << "\n"
+      << "              cutsPerRegion: " << cuts << " cutForProton: " << protonCut << "\n"
+      << "              G4 verbosity: " << verb;
 
-  // DDDWorld: get the DDCV from the ES and use it to build the World
-  G4LogicalVolumeToDDLogicalPartMap map_lv;
-  dd4hep::sim::Geant4GeometryMaps::VolumeMap lvMap;
-  if (geoFromDD4hep) {
-    m_world.reset(new DDDWorld(pDD4hep->detector(), lvMap));
-  } else {
-    m_world.reset(new DDDWorld(pDD, map_lv, m_catalog, false));
-  }
+  m_world.reset(new DDDWorld(pDD, pDD4hep, m_catalog, verb, cuts, protonCut));
   G4VPhysicalVolume* world = m_world.get()->GetWorldVolume();
 
-  bool cuts = m_pPhysics.getParameter<bool>("CutsPerRegion");
-  int verb =
-      std::max(m_pPhysics.getUntrackedParameter<int>("Verbosity", 0), m_p.getParameter<int>("SteppingVerbosity"));
   m_kernel->SetVerboseLevel(verb);
   edm::LogVerbatim("SimG4CoreApplication")
       << "RunManagerMT: Define cuts: " << cuts << " Geant4 run manager verbosity: " << verb;
 
-  if (cuts) {
-    DDG4ProductionCuts pcuts(map_lv, verb, m_pPhysics);
-  }
   const G4RegionStore* regStore = G4RegionStore::GetInstance();
   const G4PhysicalVolumeStore* pvs = G4PhysicalVolumeStore::GetInstance();
   const G4LogicalVolumeStore* lvs = G4LogicalVolumeStore::GetInstance();
@@ -140,6 +124,9 @@ void RunManagerMT::initG4(const DDCompactView* pDD,
   edm::LogVerbatim("SimG4CoreApplication")
       << "###RunManagerMT: " << numPV << " PhysVolumes; " << numLV << " LogVolumes; " << nn << " Regions.";
 
+  if (m_check) {
+    m_kernel->SetVerboseLevel(2);
+  }
   m_kernel->DefineWorldVolume(world, true);
   m_registry.dddWorldSignal_(m_world.get());
 
@@ -157,6 +144,8 @@ void RunManagerMT::initG4(const DDCompactView* pDD,
   if (phys == nullptr) {
     throw edm::Exception(edm::errors::Configuration, "Physics list construction failed!");
   }
+  G4EmParameters::Instance()->SetVerbose(verb);
+  G4EmParameters::Instance()->SetWorkerVerbose(verb - 1);
 
   // exotic particle physics
   double monopoleMass = m_pPhysics.getUntrackedParameter<double>("MonopoleMass", 0);
@@ -170,7 +159,8 @@ void RunManagerMT::initG4(const DDCompactView* pDD,
 
   // adding GFlash, Russian Roulette for eletrons and gamma,
   // step limiters on top of any Physics Lists
-  phys->RegisterPhysics(new ParametrisedEMPhysics("EMoptions", m_pPhysics));
+  if (m_UseParametrisedEMPhysics)
+    phys->RegisterPhysics(new ParametrisedEMPhysics("EMoptions", m_pPhysics));
 
   if (m_RestorePhysicsTables) {
     m_physicsList->SetPhysicsTableRetrieved(m_PhysicsTablesDir);
@@ -236,16 +226,12 @@ void RunManagerMT::initG4(const DDCompactView* pDD,
     gdml.Write(writeFile, m_world->GetWorldVolume(), true);
   }
 
-  // G4Region dump
+  // G4Region dump file name
   auto regionFile = m_p.getUntrackedParameter<std::string>("FileNameRegions", "");
-  if (!regionFile.empty()) {
-    G4RegionReporter rrep;
-    rrep.ReportRegions(regionFile);
-  }
 
-  // Intersection check
-  if (m_check) {
-    G4CheckOverlap check(m_g4overlap);
+  // Geometry checks
+  if (m_check || !regionFile.empty()) {
+    CMSG4CheckOverlap check(m_g4overlap, regionFile, m_UIsession, world);
   }
 
   // If the Geant4 particle table is needed, decomment the lines below
@@ -255,6 +241,7 @@ void RunManagerMT::initG4(const DDCompactView* pDD,
   m_stateManager->SetNewState(G4State_GeomClosed);
   m_currentRun = new G4Run();
   m_userRunAction->BeginOfRunAction(m_currentRun);
+  edm::LogVerbatim("SimG4CoreApplication") << "RunManagerMT:: initG4 done";
 }
 
 void RunManagerMT::initializeUserActions() {
@@ -286,4 +273,5 @@ void RunManagerMT::terminateRun() {
     m_kernel->RunTermination();
   }
   m_runTerminated = true;
+  edm::LogVerbatim("SimG4CoreApplication") << "RunManagerMT:: terminateRun done";
 }

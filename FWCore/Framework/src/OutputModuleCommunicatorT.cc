@@ -17,16 +17,12 @@
 
 #include "FWCore/Framework/src/OutputModuleCommunicatorT.h"
 
-#include "FWCore/Framework/interface/OutputModule.h"
 #include "FWCore/Framework/interface/global/OutputModuleBase.h"
 #include "FWCore/Framework/interface/one/OutputModuleBase.h"
 #include "FWCore/Framework/interface/limited/OutputModuleBase.h"
+#include "FWCore/Utilities/interface/thread_safety_macros.h"
 
 namespace {
-  template <typename F>
-  void async(edm::OutputModule& iMod, F&& iFunc) {
-    iMod.sharedResourcesAcquirer().serialQueueChain().push(std::move(iFunc));
-  }
 
   template <typename F>
   void async(edm::one::OutputModuleBase& iMod, F&& iFunc) {
@@ -63,6 +59,45 @@ namespace edm {
   }
 
   template <typename T>
+  void OutputModuleCommunicatorT<T>::writeProcessBlockAsync(WaitingTaskHolder iTask,
+                                                            ProcessBlockPrincipal const& processBlockPrincipal,
+                                                            ProcessContext const* processContext,
+                                                            ActivityRegistry* activityRegistry) {
+    auto token = ServiceRegistry::instance().presentToken();
+    GlobalContext globalContext(GlobalContext::Transition::kWriteProcessBlock,
+                                LuminosityBlockID(),
+                                RunIndex::invalidRunIndex(),
+                                LuminosityBlockIndex::invalidLuminosityBlockIndex(),
+                                Timestamp::invalidTimestamp(),
+                                processContext);
+    auto t = [&mod = module(),
+              &processBlockPrincipal,
+              globalContext,
+              token,
+              desc = &description(),
+              activityRegistry,
+              iTask]() mutable {
+      std::exception_ptr ex;
+      // Caught exception is propagated via WaitingTaskHolder
+      CMS_SA_ALLOW try {
+        ServiceRegistry::Operate op(token);
+        ParentContext parentContext(&globalContext);
+        ModuleCallingContext mcc(desc);
+        ModuleContextSentry moduleContextSentry(&mcc, parentContext);
+        activityRegistry->preModuleWriteProcessBlockSignal_(globalContext, mcc);
+        auto sentry(make_sentry(activityRegistry, [&globalContext, &mcc](ActivityRegistry* ar) {
+          ar->postModuleWriteProcessBlockSignal_(globalContext, mcc);
+        }));
+        mod.doWriteProcessBlock(processBlockPrincipal, &mcc);
+      } catch (...) {
+        ex = std::current_exception();
+      }
+      iTask.doneWaiting(ex);
+    };
+    async(module(), std::move(t));
+  }
+
+  template <typename T>
   void OutputModuleCommunicatorT<T>::writeRunAsync(WaitingTaskHolder iTask,
                                                    edm::RunPrincipal const& rp,
                                                    ProcessContext const* processContext,
@@ -75,7 +110,7 @@ namespace edm {
                                 LuminosityBlockIndex::invalidLuminosityBlockIndex(),
                                 rp.endTime(),
                                 processContext);
-    auto t = [& mod = module(),
+    auto t = [&mod = module(),
               &rp,
               globalContext,
               token,
@@ -84,14 +119,15 @@ namespace edm {
               mergeableRunProductMetadata,
               iTask]() mutable {
       std::exception_ptr ex;
-      try {
+      // Caught exception is propagated via WaitingTaskHolder
+      CMS_SA_ALLOW try {
         ServiceRegistry::Operate op(token);
         ParentContext parentContext(&globalContext);
         ModuleCallingContext mcc(desc);
         ModuleContextSentry moduleContextSentry(&mcc, parentContext);
         activityRegistry->preModuleWriteRunSignal_(globalContext, mcc);
-        auto sentry(make_sentry(activityRegistry, [&globalContext, &mcc](ActivityRegistry* activityRegistry) {
-          activityRegistry->postModuleWriteRunSignal_(globalContext, mcc);
+        auto sentry(make_sentry(activityRegistry, [&globalContext, &mcc](ActivityRegistry* ar) {
+          ar->postModuleWriteRunSignal_(globalContext, mcc);
         }));
         mod.doWriteRun(rp, &mcc, mergeableRunProductMetadata);
       } catch (...) {
@@ -114,17 +150,18 @@ namespace edm {
                                 lbp.index(),
                                 lbp.beginTime(),
                                 processContext);
-    auto t = [& mod = module(), &lbp, activityRegistry, token, globalContext, desc = &description(), iTask]() mutable {
+    auto t = [&mod = module(), &lbp, activityRegistry, token, globalContext, desc = &description(), iTask]() mutable {
       std::exception_ptr ex;
-      try {
+      // Caught exception is propagated via WaitingTaskHolder
+      CMS_SA_ALLOW try {
         ServiceRegistry::Operate op(token);
 
         ParentContext parentContext(&globalContext);
         ModuleCallingContext mcc(desc);
         ModuleContextSentry moduleContextSentry(&mcc, parentContext);
         activityRegistry->preModuleWriteLumiSignal_(globalContext, mcc);
-        auto sentry(make_sentry(activityRegistry, [&globalContext, &mcc](ActivityRegistry* activityRegistry) {
-          activityRegistry->postModuleWriteLumiSignal_(globalContext, mcc);
+        auto sentry(make_sentry(activityRegistry, [&globalContext, &mcc](ActivityRegistry* ar) {
+          ar->postModuleWriteLumiSignal_(globalContext, mcc);
         }));
         mod.doWriteLuminosityBlock(lbp, &mcc);
       } catch (...) {
@@ -177,9 +214,6 @@ namespace edm {
     std::unique_ptr<edm::OutputModuleCommunicator> createCommunicatorIfNeeded(void*) {
       return std::unique_ptr<edm::OutputModuleCommunicator>{};
     }
-    std::unique_ptr<edm::OutputModuleCommunicator> createCommunicatorIfNeeded(::edm::OutputModule* iMod) {
-      return std::make_unique<OutputModuleCommunicatorT<edm::OutputModule>>(iMod);
-    }
     std::unique_ptr<edm::OutputModuleCommunicator> createCommunicatorIfNeeded(::edm::global::OutputModuleBase* iMod) {
       return std::make_unique<OutputModuleCommunicatorT<edm::global::OutputModuleBase>>(iMod);
     }
@@ -193,7 +227,6 @@ namespace edm {
 }  // namespace edm
 
 namespace edm {
-  template class OutputModuleCommunicatorT<OutputModule>;
   template class OutputModuleCommunicatorT<one::OutputModuleBase>;
   template class OutputModuleCommunicatorT<global::OutputModuleBase>;
   template class OutputModuleCommunicatorT<limited::OutputModuleBase>;

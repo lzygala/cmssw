@@ -1,7 +1,6 @@
 #include "DQM/TrackingMonitorClient/interface/TrackingQualityChecker.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
-#include "DQMServices/Core/interface/QReport.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include "CalibFormats/SiStripObjects/interface/SiStripDetCabling.h"
 
@@ -29,7 +28,7 @@ TrackingQualityChecker::TrackingQualityChecker(edm::ParameterSet const& ps)
   TrackingMEs tracking_mes;
   std::vector<edm::ParameterSet> TrackingGlobalQualityMEs =
       pSet_.getParameter<std::vector<edm::ParameterSet> >("TrackingGlobalQualityPSets");
-  for (auto meQTset : TrackingGlobalQualityMEs) {
+  for (const auto& meQTset : TrackingGlobalQualityMEs) {
     std::string QTname = meQTset.getParameter<std::string>("QT");
     tracking_mes.HistoDir = meQTset.getParameter<std::string>("dir");
     tracking_mes.HistoName = meQTset.getParameter<std::string>("name");
@@ -44,7 +43,7 @@ TrackingQualityChecker::TrackingQualityChecker(edm::ParameterSet const& ps)
   TrackingLSMEs tracking_ls_mes;
   std::vector<edm::ParameterSet> TrackingLSQualityMEs =
       pSet_.getParameter<std::vector<edm::ParameterSet> >("TrackingLSQualityPSets");
-  for (auto meQTset : TrackingLSQualityMEs) {
+  for (const auto& meQTset : TrackingLSQualityMEs) {
     std::string QTname = meQTset.getParameter<std::string>("QT");
     tracking_ls_mes.HistoLSDir = meQTset.exists("LSdir") ? meQTset.getParameter<std::string>("LSdir") : "";
     tracking_ls_mes.HistoLSName = meQTset.exists("LSname") ? meQTset.getParameter<std::string>("LSname") : "";
@@ -97,7 +96,7 @@ void TrackingQualityChecker::bookGlobalStatus(DQMStore::IBooker& ibooker, DQMSto
     TrackGlobalSummaryReportMap->setAxisTitle("Track Quality Type", 1);
     TrackGlobalSummaryReportMap->setAxisTitle("QTest Flag", 2);
     size_t ibin = 0;
-    for (auto meQTset : TrackingMEsMap) {
+    for (const auto& meQTset : TrackingMEsMap) {
       TrackGlobalSummaryReportMap->setBinLabel(ibin + 1, meQTset.first);
       ibin++;
     }
@@ -468,7 +467,7 @@ void TrackingQualityChecker::fillTrackingStatus(DQMStore::IBooker& ibooker, DQMS
 // -- Fill Report Summary Map
 //
 void TrackingQualityChecker::fillStatusHistogram(MonitorElement* me, int xbin, int ybin, float val) {
-  if (me && me->kind() == MonitorElement::DQM_KIND_TH2F) {
+  if (me && me->kind() == MonitorElement::Kind::TH2F) {
     TH2F* th2d = me->getTH2F();
     th2d->SetBinContent(xbin, ybin, val);
   }
@@ -527,7 +526,7 @@ void TrackingQualityChecker::fillTrackingStatusAtLumi(DQMStore::IBooker& ibooker
       if (!me)
         continue;
 
-      if (me->kind() == MonitorElement::DQM_KIND_TH1F) {
+      if (me->kind() == MonitorElement::Kind::TH1F) {
         float x_mean = me->getMean();
         if (verbose_)
           std::cout << "[TrackingQualityChecker::fillTrackingStatusAtLumi] MEname: " << MEname << " x_mean: " << x_mean
@@ -546,7 +545,7 @@ void TrackingQualityChecker::fillTrackingStatusAtLumi(DQMStore::IBooker& ibooker
           if (!me)
             continue;
 
-          if (me->kind() == MonitorElement::DQM_KIND_TH1F) {
+          if (me->kind() == MonitorElement::Kind::TH1F) {
             float x_mean = me->getMean();
             if (verbose_)
               std::cout << "[TrackingQualityChecker::fillTrackingStatusAtLumi] MEname: " << MEname << "["

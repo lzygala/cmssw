@@ -3,7 +3,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "DQM/SiStripCommon/interface/SiStripFolderOrganizer.h"
 #include "SiStripDcsInfo.h"
@@ -37,12 +36,12 @@ SiStripDcsInfo::SiStripDcsInfo(edm::ParameterSet const& pSet) {
 void SiStripDcsInfo::beginJob() {
   // Since SubDetMEs is a struct, using the brace initialization will
   // zero-initialize all members that are not specified in the call.
-  SubDetMEsMap.emplace("TIB", SubDetMEs{"TIB"});
-  SubDetMEsMap.emplace("TOB", SubDetMEs{"TOB"});
-  SubDetMEsMap.emplace("TECB", SubDetMEs{"TEC/MINUS"});
-  SubDetMEsMap.emplace("TECF", SubDetMEs{"TEC/PLUS"});
-  SubDetMEsMap.emplace("TIDB", SubDetMEs{"TID/MINUS"});
-  SubDetMEsMap.emplace("TIDF", SubDetMEs{"TID/PLUS"});
+  SubDetMEsMap.emplace("TIB", SubDetMEs{"TIB", nullptr, 0, {}, {}});
+  SubDetMEsMap.emplace("TOB", SubDetMEs{"TOB", nullptr, 0, {}, {}});
+  SubDetMEsMap.emplace("TECB", SubDetMEs{"TEC/MINUS", nullptr, 0, {}, {}});
+  SubDetMEsMap.emplace("TECF", SubDetMEs{"TEC/PLUS", nullptr, 0, {}, {}});
+  SubDetMEsMap.emplace("TIDB", SubDetMEs{"TID/MINUS", nullptr, 0, {}, {}});
+  SubDetMEsMap.emplace("TIDF", SubDetMEs{"TID/PLUS", nullptr, 0, {}, {}});
 }
 //
 // -- Begin Run
@@ -130,9 +129,9 @@ void SiStripDcsInfo::bookStatus(DQMStore& dqm_store) {
   else
     dqm_store.setCurrentFolder("SiStrip/EventInfo");
 
-  DcsFraction_ = dqm_store.bookFloat("DCSSummary");
+  auto scope = DQMStore::UseLumiScope(dqm_store);
 
-  DcsFraction_->setLumiFlag();
+  DcsFraction_ = dqm_store.bookFloat("DCSSummary");
 
   dqm_store.cd();
   if (!strip_dir.empty())
@@ -142,7 +141,6 @@ void SiStripDcsInfo::bookStatus(DQMStore& dqm_store) {
   for (auto& [suffix, subDetME] : SubDetMEsMap) {
     std::string const me_name{"SiStrip_" + suffix};
     subDetME.DcsFractionME = dqm_store.bookFloat(me_name);
-    subDetME.DcsFractionME->setLumiFlag();
   }
   bookedStatus_ = true;
   dqm_store.cd();

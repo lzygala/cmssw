@@ -31,14 +31,13 @@ Description: Create monitorElements for the Errors in created in the reduction o
 #include "DataFormats/SiPixelDigi/interface/SiPixelCalibDigiError.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "DQM/SiPixelCommon/interface/SiPixelHistogramId.h"
 #include "DQM/SiPixelCommon/interface/SiPixelFolderOrganizer.h"
 
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetType.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetType.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 
 #include "CondFormats/SiPixelObjects/interface/SiPixelFedCablingMap.h"
@@ -49,6 +48,8 @@ Description: Create monitorElements for the Errors in created in the reduction o
 
 class SiPixelErrorsDigisToCalibDigis : public edm::EDAnalyzer {
 public:
+  typedef dqm::legacy::MonitorElement MonitorElement;
+  typedef dqm::legacy::DQMStore DQMStore;
   explicit SiPixelErrorsDigisToCalibDigis(const edm::ParameterSet&);
   ~SiPixelErrorsDigisToCalibDigis() override;
 

@@ -4,7 +4,6 @@
 #include "FWCore/Framework/interface/Principal.h"
 
 #include "DataFormats/Provenance/interface/ProcessConfiguration.h"
-#include "DataFormats/Provenance/interface/ProcessHistoryRegistry.h"
 #include "DataFormats/Provenance/interface/ProductResolverIndexHelper.h"
 #include "DataFormats/Provenance/interface/ProductRegistry.h"
 #include "DataFormats/Common/interface/FunctorHandleExceptionFactory.h"
@@ -236,9 +235,9 @@ namespace edm {
               } else {
                 bool productMadeAtEnd = false;
                 //Need to know if the product from this processes is added at end of transition
-                for (unsigned int i = 0; i < matchingHolders.size(); ++i) {
-                  if ((not ambiguous[i]) and ProductResolverIndexInvalid != matchingHolders[i] and
-                      productResolvers_[matchingHolders[i]]->branchDescription().availableOnlyAtEndTransition()) {
+                for (unsigned int j = 0; j < matchingHolders.size(); ++j) {
+                  if ((not ambiguous[j]) and ProductResolverIndexInvalid != matchingHolders[j] and
+                      productResolvers_[matchingHolders[j]]->branchDescription().availableOnlyAtEndTransition()) {
                     productMadeAtEnd = true;
                     break;
                   }
@@ -391,20 +390,23 @@ namespace edm {
     applyToResolvers([&iConfigure](ProductResolverBase* iResolver) { iResolver->setupUnscheduled(iConfigure); });
   }
 
-  // Set the principal for the Event, Lumi, or Run.
-  void Principal::fillPrincipal(ProcessHistoryID const& hist,
-                                ProcessHistoryRegistry const& processHistoryRegistry,
-                                DelayedReader* reader) {
+  void Principal::fillPrincipal(DelayedReader* reader) {
     //increment identifier here since clearPrincipal isn't called for Run/Lumi
     cacheIdentifier_ = nextIdentifier();
     if (reader) {
       reader_ = reader;
     }
+  }
+
+  // Set the principal for the Event, Lumi, or Run.
+  void Principal::fillPrincipal(ProcessHistoryID const& hist,
+                                ProcessHistory const* processHistory,
+                                DelayedReader* reader) {
+    fillPrincipal(reader);
 
     if (historyAppender_ && productRegistry().anyProductProduced()) {
       if ((not processHistoryPtr_) || (processHistoryIDBeforeConfig_ != hist)) {
-        processHistoryPtr_ = historyAppender_->appendToProcessHistory(
-            hist, processHistoryRegistry.getMapped(hist), *processConfiguration_);
+        processHistoryPtr_ = historyAppender_->appendToProcessHistory(hist, processHistory, *processConfiguration_);
         processHistoryID_ = processHistoryPtr_->id();
         processHistoryIDBeforeConfig_ = hist;
       }
@@ -414,7 +416,7 @@ namespace edm {
         if (hist.isValid()) {
           //does not own the pointer
           auto noDel = [](void const*) {};
-          inputProcessHistory = std::shared_ptr<ProcessHistory const>(processHistoryRegistry.getMapped(hist), noDel);
+          inputProcessHistory = std::shared_ptr<ProcessHistory const>(processHistory, noDel);
           if (inputProcessHistory.get() == nullptr) {
             throw Exception(errors::LogicError) << "Principal::fillPrincipal\n"
                                                 << "Input ProcessHistory not found in registry\n"
@@ -445,11 +447,13 @@ namespace edm {
       // The current process might be needed but not be in the process
       // history if all the products produced in the current process are
       // transient.
-      auto nameIter =
-          std::find(lookupProcessNames.begin(), lookupProcessNames.end(), processConfiguration_->processName());
-      if (nameIter != lookupProcessNames.end()) {
-        lookupProcessOrder_.at(k) = nameIter - lookupProcessNames.begin();
-        ++k;
+      {
+        auto nameIterCurrentProcess =
+            std::find(lookupProcessNames.begin(), lookupProcessNames.end(), processConfiguration_->processName());
+        if (nameIterCurrentProcess != lookupProcessNames.end()) {
+          lookupProcessOrder_.at(k) = nameIterCurrentProcess - lookupProcessNames.begin();
+          ++k;
+        }
       }
 
       // We just looked for the current process so skip it if
@@ -468,6 +472,20 @@ namespace edm {
         ++k;
       }
       orderProcessHistoryID_ = processHistoryID_;
+    }
+  }
+
+  // Set the principal for the ProcessBlock
+  void Principal::fillPrincipal(std::string const& processNameOfBlock, DelayedReader* reader) {
+    fillPrincipal(reader);
+
+    std::vector<std::string> const& lookupProcessNames = productLookup_->lookupProcessNames();
+    lookupProcessOrder_.assign(lookupProcessNames.size(), 0);
+    if (!lookupProcessOrder_.empty()) {
+      auto iter = std::find(lookupProcessNames.begin(), lookupProcessNames.end(), processNameOfBlock);
+      if (iter != lookupProcessNames.end()) {
+        lookupProcessOrder_[0] = iter - lookupProcessNames.begin();
+      }
     }
   }
 
@@ -543,6 +561,10 @@ namespace edm {
                                     EDConsumerBase const* consumer,
                                     SharedResourcesAcquirer* sra,
                                     ModuleCallingContext const* mcc) const {
+    // Not implemented for ProcessBlocks, it might work though, not tested
+    // The other getByLabel function is used for ProcessBlocks by TestProcessor
+    assert(branchType_ != InProcess);
+
     ProductData const* result = findProductByLabel(kindOfType, typeID, inputTag, consumer, sra, mcc);
     if (result == nullptr) {
       return BasicHandle(makeHandleExceptionFactory([=]() -> std::shared_ptr<cms::Exception> {
@@ -616,6 +638,9 @@ namespace edm {
                                 EDConsumerBase const* consumer,
                                 SharedResourcesAcquirer* sra,
                                 ModuleCallingContext const* mcc) const {
+    // Not implemented for ProcessBlocks
+    assert(branchType_ != InProcess);
+
     assert(results.empty());
 
     if (UNLIKELY(consumer and (not consumer->registeredToConsumeMany(typeID, branchType())))) {
@@ -789,6 +814,9 @@ namespace edm {
   ProductData const* Principal::findProductByTag(TypeID const& typeID,
                                                  InputTag const& tag,
                                                  ModuleCallingContext const* mcc) const {
+    // Not implemented for ProcessBlocks
+    assert(branchType_ != InProcess);
+
     ProductData const* productData = findProductByLabel(PRODUCT_TYPE, typeID, tag, nullptr, nullptr, mcc);
     return productData;
   }
@@ -854,9 +882,10 @@ namespace edm {
     return nullptr;
   }
 
-  WrapperBase const* Principal::getThinnedProduct(ProductID const&, unsigned int&) const {
+  std::optional<std::tuple<WrapperBase const*, unsigned int>> Principal::getThinnedProduct(ProductID const&,
+                                                                                           unsigned int) const {
     assert(false);
-    return nullptr;
+    return std::nullopt;
   }
 
   void Principal::getThinnedProducts(ProductID const&,
@@ -883,6 +912,7 @@ namespace edm {
 
   void Principal::adjustIndexesAfterProductRegistryAddition() {
     if (preg_->getNextIndexValue(branchType_) != productResolvers_.size()) {
+      bool changed = false;
       productResolvers_.resize(preg_->getNextIndexValue(branchType_));
       for (auto const& prod : preg_->productList()) {
         BranchDescription const& bd = prod.second;
@@ -894,8 +924,12 @@ namespace edm {
             assert(!bd.produced());
             auto cbd = std::make_shared<BranchDescription const>(bd);
             addInputProduct(cbd);
+            changed = true;
           }
         }
+      }
+      if (changed) {
+        changedIndexes_();
       }
     }
     assert(preg_->getNextIndexValue(branchType_) == productResolvers_.size());

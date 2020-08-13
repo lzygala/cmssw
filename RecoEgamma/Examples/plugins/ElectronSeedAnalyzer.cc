@@ -25,11 +25,9 @@
 #include "RecoTracker/TkDetLayers/interface/GeometricSearchTracker.h"
 #include "RecoEgamma/Examples/plugins/ElectronSeedAnalyzer.h"
 
-#include "RecoEgamma/EgammaElectronAlgos/interface/FTSFromVertexToPointFactory.h"
+#include "TrackingTools/TrajectoryState/interface/ftsFromVertexToPoint.h"
 #include "TrackingTools/TrajectoryState/interface/FreeTrajectoryState.h"
 #include "TrackingTools/MaterialEffects/interface/PropagatorWithMaterial.h"
-#include "RecoEgamma/EgammaElectronAlgos/interface/BarrelMeasurementEstimator.h"
-#include "RecoEgamma/EgammaElectronAlgos/interface/ForwardMeasurementEstimator.h"
 #include "DataFormats/GeometryCommonDetAlgo/interface/PerpendicularBoundPlaneBuilder.h"
 #include "TrackingTools/MaterialEffects/interface/PropagatorWithMaterial.h"
 
@@ -191,11 +189,6 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
   iSetup.get<TrackerDigiGeometryRecord>().get(pDD);
   iSetup.get<IdealMagneticFieldRecord>().get(theMagField);
 
-  // rereads the seeds for test purposes
-  typedef edm::OwnVector<TrackingRecHit> recHitContainer;
-  typedef recHitContainer::const_iterator const_iterator;
-  typedef std::pair<const_iterator, const_iterator> range;
-
   // get beam spot
   edm::Handle<reco::BeamSpot> theBeamSpot;
   e.getByLabel(beamSpot_, theBeamSpot);
@@ -217,12 +210,12 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
 
   for (ElectronSeedCollection::const_iterator MyS = (*elSeeds).begin(); MyS != (*elSeeds).end(); ++MyS) {
     LogDebug("") << "\nSeed nr " << is << ": ";
-    range r = (*MyS).recHits();
+    const TrajectorySeed::RecHitRange r = MyS->recHits();
     LogDebug("") << " Number of RecHits= " << (*MyS).nHits();
     const GeomDet *det1 = nullptr;
     const GeomDet *det2 = nullptr;
 
-    TrajectorySeed::const_iterator it = r.first;
+    auto it = r.begin();
     DetId id1 = (*it).geographicalId();
     det1 = pDD->idToDet(id1);
     LogDebug("") << " First hit local x,y,z " << (*it).localPosition() << " det " << id1.det() << " subdet "
@@ -241,8 +234,9 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
 
     // state on last det
     const GeomDet *det = nullptr;
-    for (TrackingRecHitCollection::const_iterator rhits = r.first; rhits != r.second; rhits++)
-      det = pDD->idToDet(((*rhits)).geographicalId());
+    for (auto const &recHit : r) {
+      det = pDD->idToDet(recHit.geographicalId());
+    }
     TrajectoryStateOnSurface t =
         trajectoryStateTransform::transientState((*MyS).startingState(), &(det->surface()), &(*theMagField));
 
@@ -272,7 +266,7 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
     GlobalPoint vprim(theBeamSpot->position().x(), theBeamSpot->position().y(), theBeamSpot->position().z());
     float energy = theClus->energy();
 
-    FreeTrajectoryState fts = FTSFromVertexToPointFactory::get(*theMagField, xmeas, vprim, energy, charge);
+    auto fts = trackingTools::ftsFromVertexToPoint(*theMagField, xmeas, vprim, energy, charge);
     //std::cout << "[PixelHitMatcher::compatibleSeeds] fts position, momentum " <<
     // fts.parameters().position() << " " << fts.parameters().momentum() << std::endl;
 
@@ -283,7 +277,7 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
     // TrajectorySeed::range r=(*seeds)[i].recHits();
 
     // first Hit
-    it = r.first;
+    it = r.begin();
     DetId id = (*it).geographicalId();
     const GeomDet *geomdet = pDD->idToDet((*it).geographicalId());
     LocalPoint lp = (*it).localPosition();
@@ -330,7 +324,7 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
 
       GlobalPoint vertexPred(vprim.x(), vprim.y(), zVertexPred);
 
-      FreeTrajectoryState fts2 = FTSFromVertexToPointFactory::get(*theMagField, hitPos, vertexPred, energy, charge);
+      auto fts2 = trackingTools::ftsFromVertexToPoint(*theMagField, hitPos, vertexPred, energy, charge);
       tsos2 = prop2ndLayer->propagate(fts2, geomdet2->surface());
 
       if (tsos2.isValid()) {
@@ -454,10 +448,10 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
           reco::ElectronSeed bestElectronSeed;
           for (ElectronSeedCollection::const_iterator gsfIter = (*elSeeds).begin(); gsfIter != (*elSeeds).end();
                ++gsfIter) {
-            range r = gsfIter->recHits();
             const GeomDet *det = nullptr;
-            for (TrackingRecHitCollection::const_iterator rhits = r.first; rhits != r.second; rhits++)
-              det = pDD->idToDet(((*rhits)).geographicalId());
+            for (auto const &recHit : gsfIter->recHits()) {
+              det = pDD->idToDet(recHit.geographicalId());
+            }
             TrajectoryStateOnSurface t =
                 trajectoryStateTransform::transientState(gsfIter->startingState(), &(det->surface()), &(*theMagField));
 
@@ -503,10 +497,10 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
           // find best matched seed
           for (ElectronSeedCollection::const_iterator gsfIter = (*elSeeds).begin(); gsfIter != (*elSeeds).end();
                ++gsfIter) {
-            range r = gsfIter->recHits();
             const GeomDet *det = nullptr;
-            for (TrackingRecHitCollection::const_iterator rhits = r.first; rhits != r.second; rhits++)
-              det = pDD->idToDet(((*rhits)).geographicalId());
+            for (auto const &recHit : gsfIter->recHits()) {
+              det = pDD->idToDet(recHit.geographicalId());
+            }
             TrajectoryStateOnSurface t =
                 trajectoryStateTransform::transientState(gsfIter->startingState(), &(det->surface()), &(*theMagField));
 
@@ -547,10 +541,10 @@ void ElectronSeedAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &i
           // find best matched seed
           for (ElectronSeedCollection::const_iterator gsfIter = (*elSeeds).begin(); gsfIter != (*elSeeds).end();
                ++gsfIter) {
-            range r = gsfIter->recHits();
             const GeomDet *det = nullptr;
-            for (TrackingRecHitCollection::const_iterator rhits = r.first; rhits != r.second; rhits++)
-              det = pDD->idToDet(((*rhits)).geographicalId());
+            for (auto const &recHit : gsfIter->recHits()) {
+              det = pDD->idToDet(recHit.geographicalId());
+            }
             TrajectoryStateOnSurface t =
                 trajectoryStateTransform::transientState(gsfIter->startingState(), &(det->surface()), &(*theMagField));
 

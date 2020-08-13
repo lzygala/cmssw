@@ -14,12 +14,11 @@
 #include "FWCore/Framework/interface/EDAnalyzer.h"
 #include "DQMServices/Core/interface/DQMEDAnalyzer.h"
 #include "SimTracker/TrackerHitAssociation/interface/TrackerHitAssociator.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include <string>
 
-class DQMStore;
 class DetId;
-class MonitorElement;
 class PSimHit;
 class PixelGeomDetUnit;
 class SiPixelRecHit;
@@ -35,7 +34,6 @@ public:
 
 protected:
   void analyze(const edm::Event& e, const edm::EventSetup& c) override;
-  void beginJob() override;
   void bookHistograms(DQMStore::IBooker& ibooker, const edm::Run& run, const edm::EventSetup& es) override;
 
 private:

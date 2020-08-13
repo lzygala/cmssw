@@ -69,6 +69,7 @@ public:
 
 protected:
   virtual double getEnergyDeposit(const G4Step* step);
+  virtual double EnergyCorrected(const G4Step& step, const G4Track*);
   virtual bool getFromLibrary(const G4Step* step);
 
   G4ThreeVector setToLocal(const G4ThreeVector&, const G4VTouchable*) const;
@@ -76,7 +77,7 @@ protected:
 
   bool hitExists(const G4Step*);
   bool checkHit();
-  CaloG4Hit* createNewHit(const G4Step*);
+  CaloG4Hit* createNewHit(const G4Step*, const G4Track*);
   void updateHit(CaloG4Hit*);
   void resetForNewPrimary(const G4Step*);
   double getAttenuation(const G4Step* aStep, double birk1, double birk2, double birk3) const;
@@ -105,7 +106,7 @@ protected:
     if (currentID == previousID) {
       updateHit(currentHit);
     } else if (!checkHit()) {
-      currentHit = createNewHit(step);
+      currentHit = createNewHit(step, step->GetTrack());
     }
   }
 
@@ -162,6 +163,7 @@ private:
   float timeSlice;
   double eminHitD;
   double correctT;
+  bool useFineCaloID_;
 
   std::map<CaloHitID, CaloG4Hit*> hitMap;
   std::map<int, TrackWithHistory*> tkMap;

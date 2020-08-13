@@ -23,7 +23,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
@@ -32,7 +31,7 @@
 #include "DataFormats/Scalers/interface/Level1TriggerScalers.h"
 #include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutRecord.h"
 
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 
 #include "L1Trigger/GlobalTriggerAnalyzer/interface/L1GtUtils.h"
 
@@ -46,7 +45,7 @@
 // class declaration
 //
 
-class L1TRate : public one::DQMEDAnalyzer<edm::one::WatchLuminosityBlocks> {
+class L1TRate : public DQMOneEDAnalyzer<edm::one::WatchLuminosityBlocks> {
 public:
   L1TRate(const edm::ParameterSet& ps);  // Constructor
   ~L1TRate() override;                   // Destructor
@@ -56,7 +55,7 @@ protected:
   //void beginJob();                                                   // BeginJob
   //void endJob  ();                                                   // EndJob
   void bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, const edm::EventSetup&) override;
-  //void endRun  (const edm::Run& run, const edm::EventSetup& iSetup);
+  //void dqmEndRun  (const edm::Run& run, const edm::EventSetup& iSetup);
 
   void beginLuminosityBlock(edm::LuminosityBlock const& lumiBlock, edm::EventSetup const& c) override;
   void endLuminosityBlock(edm::LuminosityBlock const& lumiBlock, edm::EventSetup const& c) override;

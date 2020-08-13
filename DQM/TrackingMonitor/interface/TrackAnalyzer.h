@@ -11,6 +11,7 @@ Monitoring source for general quantities related to tracks.
 #include <fstream>
 #include <unordered_map>
 #include "FWCore/Utilities/interface/EDGetToken.h"
+#include "FWCore/Utilities/interface/ESGetToken.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
@@ -18,7 +19,7 @@ Monitoring source for general quantities related to tracks.
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
@@ -26,13 +27,20 @@ Monitoring source for general quantities related to tracks.
 
 #include "DataFormats/SiPixelCluster/interface/SiPixelCluster.h"
 #include "DataFormats/Scalers/interface/LumiScalers.h"
-
-#include "DQMServices/Core/interface/DQMStore.h"
+#include "DataFormats/OnlineMetaData/interface/OnlineLuminosityRecord.h"
+#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
+#include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
+#include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
 
 class BeamSpot;
-namespace dqm {
+namespace tadqm {
   class TrackAnalyzer {
   public:
+    typedef dqm::legacy::DQMStore DQMStore;
+    typedef dqm::legacy::MonitorElement MonitorElement;
     TrackAnalyzer(const edm::ParameterSet&);
     TrackAnalyzer(const edm::ParameterSet&, edm::ConsumesCollector& iC);
     ~TrackAnalyzer();
@@ -40,10 +48,6 @@ namespace dqm {
 
     void analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup, const reco::Track& track);
 
-    void doSoftReset(DQMStore* dqmStore_);
-    void doReset();
-    void undoSoftReset(DQMStore* dqmStore_);
-    void setLumiFlag();
     // Compute and locally store the number of Good vertices found
     // in the event. This information is used as X-axis value in
     // the hit-efficiency plots derived from the hit patter. This
@@ -81,6 +85,11 @@ namespace dqm {
     edm::EDGetTokenT<reco::VertexCollection> pvToken_;
     edm::EDGetTokenT<edmNew::DetSetVector<SiPixelCluster> > pixelClustersToken_;
     edm::EDGetTokenT<LumiScalersCollection> lumiscalersToken_;
+    edm::EDGetTokenT<OnlineLuminosityRecord> metaDataToken_;
+    edm::ESGetToken<TrackerGeometry, TrackerDigiGeometryRecord> trackerGeometryToken_;
+    edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> trackerTopologyToken_;
+    edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> transientTrackBuilderToken_;
+
     float lumi_factor_per_bx_;
 
     edm::ParameterSet const* conf_;
@@ -130,6 +139,7 @@ namespace dqm {
     bool doEffFromHitPatternVsBX_;
     bool doEffFromHitPatternVsLUMI_;
     int pvNDOF_;
+    const bool forceSCAL_;
     bool useBPixLayer1_;
     int minNumberOfPixelsPerCluster_;
     float minPixelClusterCharge_;
@@ -498,5 +508,5 @@ namespace dqm {
 
     std::string histname;  //for naming the histograms according to algorithm used
   };
-}  // namespace dqm
+}  // namespace tadqm
 #endif

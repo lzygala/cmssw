@@ -44,7 +44,8 @@ from Validation.RecoB.BDHadronTrackValidation_cff import *
 from Validation.Configuration.hgcalSimValid_cff import *
 from Validation.Configuration.mtdSimValid_cff import *
 from Validation.SiOuterTrackerV.OuterTrackerSourceConfigV_cff import *
-
+from Validation.Configuration.ecalSimValid_cff import *
+from Validation.SiTrackerPhase2V.Phase2TrackerValidationFirstStep_cff import *
 
 # filter/producer "pre-" sequence for globalValidation
 globalPrevalidationTracking = cms.Sequence(
@@ -76,8 +77,6 @@ globalValidation = cms.Sequence(   trackerHitsValidation
                                  + hcalSimHitsValidationSequence
                                  + hcaldigisValidationSequence
                                  + hcalSimHitStudy
-                                 + hcalRecHitsValidationSequence
-                                 + calotowersValidationSequence
                                  + validSimHit+muondtdigianalyzer
                                  + cscDigiValidation
                                  + validationMuonRPCDigis
@@ -133,6 +132,7 @@ globalPrevalidationTrackingOnly = cms.Sequence(
     + vertexValidationTrackingOnly
 )
 globalValidationTrackingOnly = cms.Sequence()
+
 # Pixel tracking only validation
 globalPrevalidationPixelTrackingOnly = cms.Sequence(
       simHitTPAssocProducer
@@ -142,26 +142,61 @@ globalPrevalidationPixelTrackingOnly = cms.Sequence(
 globalValidationPixelTrackingOnly = cms.Sequence()
 
 globalValidationJetMETonly = cms.Sequence(
-                                   JetValidation
-                                 + METValidation
+      JetValidation
+    + METValidation
 )
 
 globalPrevalidationJetMETOnly = cms.Sequence(
-				   jetPreValidSeq
-				  +metPreValidSeq
+      jetPreValidSeq
+    + metPreValidSeq
 )
 
+# ECAL local reconstruction
+globalPrevalidationECAL = cms.Sequence()
+globalPrevalidationECALOnly = cms.Sequence(
+      baseCommonPreValidation
+    + globalPrevalidationECAL
+)
+
+globalValidationECAL = cms.Sequence(
+      ecalSimHitsValidationSequence
+    + ecalDigisValidationSequence
+    + ecalRecHitsValidationSequence
+    + ecalClustersValidationSequence
+)
+globalValidationECALOnly = cms.Sequence(
+      ecalSimHitsValidationSequence
+    + ecalDigisValidationSequence
+    + ecalRecHitsValidationSequence
+    + pfClusterCaloOnlyValidationSequence
+)
+
+# HCAL local reconstruction
 globalPrevalidationHCAL = cms.Sequence()
+
+globalPrevalidationHCALOnly = cms.Sequence(
+      baseCommonPreValidation
+    + globalPrevalidationHCAL
+)
+
+hcalRecHitsOnlyValidationSequence = hcalRecHitsValidationSequence.copyAndExclude([NoiseRatesValidation])
 
 globalValidationHCAL = cms.Sequence(
       hcalSimHitsValidationSequence
     + hcaldigisValidationSequence
     + hcalSimHitStudy
-    + hcalRecHitsValidationSequence
-    + calotowersValidationSequence
+)
+
+globalValidationHCALOnly = cms.Sequence(
+      hcalSimHitsValidationSequence
+    + hcaldigisValidationSequence
+    + hcalSimHitStudy
+    + hcalRecHitsOnlyValidationSequence
+    + pfClusterCaloOnlyValidationSequence
 )
 
 globalValidationHGCal = cms.Sequence(hgcalValidation)
+globalPrevalidationHGCal = cms.Sequence(hgcalAssociators)
 
 globalValidationMTD = cms.Sequence()
 
@@ -191,6 +226,7 @@ _run3_globalValidation = globalValidation.copy()
 _run3_globalValidation += gemSimValid
 
 _phase2_globalValidation = _run3_globalValidation.copy()
+_phase2_globalValidation += trackerphase2ValidationSource
 _phase2_globalValidation += me0SimValid
 
 
@@ -202,6 +238,5 @@ from Configuration.Eras.Modifier_phase2_muon_cff import phase2_muon
 phase2_muon.toReplaceWith( globalValidation, _phase2_globalValidation )
 from Configuration.Eras.Modifier_pp_on_AA_2018_cff import pp_on_AA_2018
 pp_on_AA_2018.toReplaceWith(globalValidation, globalValidation.copyAndExclude([pfTauRunDQMValidation]))
-from Configuration.Eras.Modifier_phase2_timing_layer_bar_cff import phase2_timing_layer_bar
-from Configuration.Eras.Modifier_phase2_timing_layer_tile_cff import phase2_timing_layer_tile
-(phase2_timing_layer_tile | phase2_timing_layer_bar).toReplaceWith(globalValidationMTD, cms.Sequence(mtdSimValid+mtdDigiValid+mtdRecoValid))
+from Configuration.Eras.Modifier_phase2_timing_layer_cff import phase2_timing_layer
+phase2_timing_layer.toReplaceWith(globalValidationMTD, cms.Sequence(mtdSimValid+mtdDigiValid+mtdRecoValid))

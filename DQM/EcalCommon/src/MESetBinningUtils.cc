@@ -7,6 +7,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
 #include "TPRegexp.h"
+#include "TObjArray.h"
 
 namespace ecaldqm {
   namespace binning {
@@ -621,6 +622,7 @@ namespace ecaldqm {
             break;
           }
         }
+          [[fallthrough]];
         case kTriggerTower: {
           // EB-03 DCC 12 TCC 18 TT 3
           EcalTriggerElectronicsId teid(_rawId);
@@ -920,19 +922,19 @@ namespace ecaldqm {
       throw cms::Exception("InvalidConfiguration") << "No binning type " << _btypeName << " defined";
     }
 
-    MonitorElement::Kind translateKind(std::string const &_kindName) {
+    dqm::reco::MonitorElement::Kind translateKind(std::string const &_kindName) {
       if (_kindName == "REAL")
-        return MonitorElement::DQM_KIND_REAL;
+        return dqm::reco::MonitorElement::Kind::REAL;
       else if (_kindName == "TH1F")
-        return MonitorElement::DQM_KIND_TH1F;
+        return dqm::reco::MonitorElement::Kind::TH1F;
       else if (_kindName == "TProfile")
-        return MonitorElement::DQM_KIND_TPROFILE;
+        return dqm::reco::MonitorElement::Kind::TPROFILE;
       else if (_kindName == "TH2F")
-        return MonitorElement::DQM_KIND_TH2F;
+        return dqm::reco::MonitorElement::Kind::TH2F;
       else if (_kindName == "TProfile2D")
-        return MonitorElement::DQM_KIND_TPROFILE2D;
+        return dqm::reco::MonitorElement::Kind::TPROFILE2D;
       else
-        return MonitorElement::DQM_KIND_INVALID;
+        return dqm::reco::MonitorElement::Kind::INVALID;
     }
   }  // namespace binning
 }  // namespace ecaldqm

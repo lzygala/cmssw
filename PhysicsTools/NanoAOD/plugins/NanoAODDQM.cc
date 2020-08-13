@@ -3,7 +3,6 @@
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "DQMServices/Core/interface/DQMEDAnalyzer.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "DataFormats/NanoAOD/interface/FlatTable.h"
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
@@ -44,8 +43,6 @@ public:
 protected:
   //Book histograms
   void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &) override;
-  void dqmBeginRun(const edm::Run &, const edm::EventSetup &) override {}
-  void endRun(const edm::Run &, const edm::EventSetup &) override {}
 
 private:
   class Plot {
@@ -87,18 +84,20 @@ private:
       if (icol == -1)
         return;  // columns may be missing (e.g. mc-only)
       switch (table.columnType(icol)) {
-        case FlatTable::FloatColumn:
+        case FlatTable::ColumnType::Float:
           vfill<float>(table, icol, rowsel);
           break;
-        case FlatTable::IntColumn:
+        case FlatTable::ColumnType::Int:
           vfill<int>(table, icol, rowsel);
           break;
-        case FlatTable::UInt8Column:
+        case FlatTable::ColumnType::UInt8:
           vfill<uint8_t>(table, icol, rowsel);
           break;
-        case FlatTable::BoolColumn:
-          vfill<uint8_t>(table, icol, rowsel);
+        case FlatTable::ColumnType::Bool:
+          vfill<bool>(table, icol, rowsel);
           break;
+        default:
+          throw cms::Exception("LogicError", "Unsupported type");
       }
     }
 

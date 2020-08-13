@@ -1,3 +1,5 @@
+#include <memory>
+
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCTriggerPrimitivesBuilder.h"
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCMotherboard.h"
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCMotherboardME11.h"
@@ -27,15 +29,15 @@ CSCTriggerPrimitivesBuilder::CSCTriggerPrimitivesBuilder(const edm::ParameterSet
 
   checkBadChambers_ = conf.getParameter<bool>("checkBadChambers");
 
-  runME11Up_ = commonParams.existsAs<bool>("runME11Up") ? commonParams.getParameter<bool>("runME11Up") : false;
-  runME21Up_ = commonParams.existsAs<bool>("runME21Up") ? commonParams.getParameter<bool>("runME21Up") : false;
-  runME31Up_ = commonParams.existsAs<bool>("runME31Up") ? commonParams.getParameter<bool>("runME31Up") : false;
-  runME41Up_ = commonParams.existsAs<bool>("runME41Up") ? commonParams.getParameter<bool>("runME41Up") : false;
+  runME11Up_ = commonParams.getParameter<bool>("runME11Up");
+  runME21Up_ = commonParams.getParameter<bool>("runME21Up");
+  runME31Up_ = commonParams.getParameter<bool>("runME31Up");
+  runME41Up_ = commonParams.getParameter<bool>("runME41Up");
 
-  runME11ILT_ = commonParams.existsAs<bool>("runME11ILT") ? commonParams.getParameter<bool>("runME11ILT") : false;
-  runME21ILT_ = commonParams.existsAs<bool>("runME21ILT") ? commonParams.getParameter<bool>("runME21ILT") : false;
+  runME11ILT_ = commonParams.getParameter<bool>("runME11ILT");
+  runME21ILT_ = commonParams.getParameter<bool>("runME21ILT");
 
-  useClusters_ = commonParams.existsAs<bool>("useClusters") ? commonParams.getParameter<bool>("useClusters") : false;
+  useClusters_ = commonParams.getParameter<bool>("useClusters");
 
   // Initializing boards.
   for (int endc = min_endcap; endc <= max_endcap; endc++) {
@@ -59,23 +61,22 @@ CSCTriggerPrimitivesBuilder::CSCTriggerPrimitivesBuilder(const edm::ParameterSet
 
             // go through all possible cases
             if (isSLHC_ and ring == 1 and stat == 1 and runME11Up_ and !runME11ILT_)
-              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1].reset(
-                  new CSCMotherboardME11(endc, stat, sect, subs, cham, conf));
+              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1] =
+                  std::make_unique<CSCMotherboardME11>(endc, stat, sect, subs, cham, conf);
             else if (isSLHC_ and ring == 1 and stat == 1 and runME11Up_ and runME11ILT_)
-              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1].reset(
-                  new CSCGEMMotherboardME11(endc, stat, sect, subs, cham, conf));
-            else if (isSLHC_ and ring == 1 and stat == 2 and runME21Up_ and !runME21ILT_)
-              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1].reset(
-                  new CSCUpgradeMotherboard(endc, stat, sect, subs, cham, conf));
+              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1] =
+                  std::make_unique<CSCGEMMotherboardME11>(endc, stat, sect, subs, cham, conf);
             else if (isSLHC_ and ring == 1 and stat == 2 and runME21Up_ and runME21ILT_)
-              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1].reset(
-                  new CSCGEMMotherboardME21(endc, stat, sect, subs, cham, conf));
-            else if (isSLHC_ and ring == 1 and ((stat == 3 and runME31Up_) || (stat == 4 and runME41Up_)))
-              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1].reset(
-                  new CSCUpgradeMotherboard(endc, stat, sect, subs, cham, conf));
+              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1] =
+                  std::make_unique<CSCGEMMotherboardME21>(endc, stat, sect, subs, cham, conf);
+            else if (isSLHC_ and ring == 1 and
+                     ((stat == 2 and runME21Up_ and !runME21ILT_) || (stat == 3 and runME31Up_) ||
+                      (stat == 4 and runME41Up_)))
+              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1] =
+                  std::make_unique<CSCUpgradeMotherboard>(endc, stat, sect, subs, cham, conf);
             else
-              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1].reset(
-                  new CSCMotherboard(endc, stat, sect, subs, cham, conf));
+              tmb_[endc - 1][stat - 1][sect - 1][subs - 1][cham - 1] =
+                  std::make_unique<CSCMotherboard>(endc, stat, sect, subs, cham, conf);
           }
         }
       }
@@ -87,7 +88,7 @@ CSCTriggerPrimitivesBuilder::CSCTriggerPrimitivesBuilder(const edm::ParameterSet
   m_maxBX_ = conf.getParameter<int>("MaxBX");
 
   // Init MPC
-  m_muonportcard.reset(new CSCMuonPortCard(conf));
+  m_muonportcard = std::make_unique<CSCMuonPortCard>(conf);
 }
 
 //------------
@@ -118,7 +119,10 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
                                         const GEMPadDigiCollection* gemPads,
                                         const GEMPadDigiClusterCollection* gemClusters,
                                         CSCALCTDigiCollection& oc_alct,
+                                        CSCALCTDigiCollection& oc_alct_all,
                                         CSCCLCTDigiCollection& oc_clct,
+                                        CSCCLCTDigiCollection& oc_clct_all,
+                                        CSCALCTPreTriggerDigiCollection& oc_alctpretrigger,
                                         CSCCLCTPreTriggerDigiCollection& oc_pretrigger,
                                         CSCCLCTPreTriggerCollection& oc_pretrig,
                                         CSCCorrelatedLCTDigiCollection& oc_lct,
@@ -172,11 +176,16 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               const std::vector<CSCCorrelatedLCTDigi>& lctV = tmb11->readoutLCTs1b();
               const std::vector<CSCCorrelatedLCTDigi>& lctV1a = tmb11->readoutLCTs1a();
               const std::vector<CSCALCTDigi>& alctV = tmb11->alctProc->readoutALCTs();
+              const std::vector<CSCALCTDigi>& alctV_all =
+                  tmb11->alctProc->readoutALCTs(CSCConstants::MAX_ALCTS_PER_PROCESSOR);
               const std::vector<CSCCLCTDigi>& clctV = tmb11->clctProc->readoutCLCTsME1b();
-              const std::vector<int> preTriggerBXs = tmb11->clctProc->preTriggerBXs();
+              const std::vector<CSCCLCTDigi>& clctV_all =
+                  tmb11->clctProc->readoutCLCTsME1b(CSCConstants::MAX_CLCTS_PER_PROCESSOR);
+              const std::vector<int>& preTriggerBXs = tmb11->clctProc->preTriggerBXs();
               const std::vector<CSCCLCTPreTriggerDigi>& pretriggerV = tmb11->clctProc->preTriggerDigisME1b();
               const std::vector<CSCCLCTDigi>& clctV1a = tmb11->clctProc->readoutCLCTsME1a();
               const std::vector<CSCCLCTPreTriggerDigi>& pretriggerV1a = tmb11->clctProc->preTriggerDigisME1a();
+              const std::vector<CSCALCTPreTriggerDigi>& alctpretriggerV = tmb11->alctProc->preTriggerDigis();
 
               if (infoV > 1)
                 LogTrace("CSCTriggerPrimitivesBuilder")
@@ -188,13 +197,15 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               if (!(lctV.empty() && alctV.empty() && clctV.empty()) and infoV > 1) {
                 LogTrace("L1CSCTrigger") << "CSCTriggerPrimitivesBuilder results in " << detid;
               }
-
               // put collections in event
               put(lctV, oc_lct, detid, " ME1b LCT digi");
               put(alctV, oc_alct, detid, " ME1b ALCT digi");
+              put(alctV_all, oc_alct_all, detid, " ME1b ALCT digi");
               put(clctV, oc_clct, detid, " ME1b CLCT digi");
+              put(clctV_all, oc_clct_all, detid, " ME1b CLCT digi");
               put(pretriggerV, oc_pretrigger, detid, " ME1b CLCT pre-trigger digi");
               put(preTriggerBXs, oc_pretrig, detid, " ME1b CLCT pre-trigger BX");
+              put(alctpretriggerV, oc_alctpretrigger, detid, " ME1b ALCT pre-trigger digi");
 
               // ME1/a
 
@@ -222,7 +233,12 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               if (infoV > 1)
                 LogTrace("CSCTriggerPrimitivesBuilder")
                     << "CSCTriggerPrimitivesBuilder::build in E:" << endc << " S:" << stat << " R:" << ring;
-              tmb11GEM->run(wiredc, compdc, gemPads);
+
+              if (useClusters_) {
+                tmb11GEM->run(wiredc, compdc, gemClusters);
+              } else {
+                tmb11GEM->run(wiredc, compdc, gemPads);
+              }
 
               // 0th layer means whole chamber.
               GEMDetId gemId(detid.zendcap(), 1, 1, 0, chid, 0);
@@ -231,12 +247,17 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               const std::vector<CSCCorrelatedLCTDigi>& lctV = tmb11GEM->readoutLCTs1b();
               const std::vector<CSCCorrelatedLCTDigi>& lctV1a = tmb11GEM->readoutLCTs1a();
               const std::vector<CSCALCTDigi>& alctV = tmb11GEM->alctProc->readoutALCTs();
+              const std::vector<CSCALCTDigi>& alctV_all =
+                  tmb11GEM->alctProc->readoutALCTs(CSCConstants::MAX_ALCTS_PER_PROCESSOR);
               const std::vector<CSCCLCTDigi>& clctV = tmb11GEM->clctProc->readoutCLCTsME1b();
+              const std::vector<CSCCLCTDigi>& clctV_all =
+                  tmb11GEM->clctProc->readoutCLCTsME1b(CSCConstants::MAX_CLCTS_PER_PROCESSOR);
               const std::vector<int>& preTriggerBXs = tmb11GEM->clctProc->preTriggerBXs();
               const std::vector<CSCCLCTPreTriggerDigi>& pretriggerV = tmb11GEM->clctProc->preTriggerDigisME1b();
               const std::vector<CSCCLCTDigi>& clctV1a = tmb11GEM->clctProc->readoutCLCTsME1a();
               const std::vector<CSCCLCTPreTriggerDigi>& pretriggerV1a = tmb11GEM->clctProc->preTriggerDigisME1a();
               const std::vector<GEMCoPadDigi>& copads = tmb11GEM->coPadProcessor->readoutCoPads();
+              const std::vector<CSCALCTPreTriggerDigi>& alctpretriggerV = tmb11GEM->alctProc->preTriggerDigis();
 
               // ME1/b
               if (!(lctV.empty() && alctV.empty() && clctV.empty()) and infoV > 1) {
@@ -246,10 +267,13 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               // put collections in event
               put(lctV, oc_lct, detid, " ME1b LCT digi");
               put(alctV, oc_alct, detid, " ME1b ALCT digi");
+              put(alctV_all, oc_alct_all, detid, " ME1b ALCT digi");
               put(clctV, oc_clct, detid, " ME1b CLCT digi");
+              put(clctV_all, oc_clct_all, detid, " ME1b CLCT digi");
               put(pretriggerV, oc_pretrigger, detid, " ME1b CLCT pre-trigger digi");
               put(preTriggerBXs, oc_pretrig, detid, " ME1b CLCT pre-trigger BX");
               put(copads, oc_gemcopad, gemId, " GEM coincidence pad");
+              put(alctpretriggerV, oc_alctpretrigger, detid, " ME1b ALCT pre-trigger digi");
 
               // ME1/a
               if (disableME1a_)
@@ -273,7 +297,12 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               CSCGEMMotherboardME21* tmb21GEM = static_cast<CSCGEMMotherboardME21*>(tmb);
               tmb21GEM->setCSCGeometry(csc_g);
               tmb21GEM->setGEMGeometry(gem_g);
-              tmb21GEM->run(wiredc, compdc, gemPads);
+
+              if (useClusters_) {
+                tmb21GEM->run(wiredc, compdc, gemClusters);
+              } else {
+                tmb21GEM->run(wiredc, compdc, gemPads);
+              }
 
               // 0th layer means whole chamber.
               GEMDetId gemId(detid.zendcap(), 1, 2, 0, chid, 0);
@@ -281,10 +310,15 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               // get the collections
               const std::vector<CSCCorrelatedLCTDigi>& lctV = tmb21GEM->readoutLCTs();
               const std::vector<CSCALCTDigi>& alctV = tmb21GEM->alctProc->readoutALCTs();
+              const std::vector<CSCALCTDigi>& alctV_all =
+                  tmb21GEM->alctProc->readoutALCTs(CSCConstants::MAX_ALCTS_PER_PROCESSOR);
               const std::vector<CSCCLCTDigi>& clctV = tmb21GEM->clctProc->readoutCLCTs();
+              const std::vector<CSCCLCTDigi>& clctV_all =
+                  tmb21GEM->clctProc->readoutCLCTs(CSCConstants::MAX_CLCTS_PER_PROCESSOR);
               const std::vector<int>& preTriggerBXs = tmb21GEM->clctProc->preTriggerBXs();
               const std::vector<CSCCLCTPreTriggerDigi>& pretriggerV = tmb21GEM->clctProc->preTriggerDigis();
               const std::vector<GEMCoPadDigi>& copads = tmb21GEM->coPadProcessor->readoutCoPads();
+              const std::vector<CSCALCTPreTriggerDigi>& alctpretriggerV = tmb21GEM->alctProc->preTriggerDigis();
 
               if (!(alctV.empty() && clctV.empty() && lctV.empty()) and infoV > 1) {
                 LogTrace("L1CSCTrigger") << "CSCTriggerPrimitivesBuilder got results in " << detid;
@@ -293,13 +327,18 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               // put collections in event
               put(lctV, oc_lct, detid, " ME21 LCT digi");
               put(alctV, oc_alct, detid, " ME21 ALCT digi");
+              put(alctV_all, oc_alct_all, detid, " ME21 ALCT digi");
               put(clctV, oc_clct, detid, " ME21 CLCT digi");
+              put(clctV_all, oc_clct_all, detid, " ME21 CLCT digi");
               put(pretriggerV, oc_pretrigger, detid, " ME21 CLCT pre-trigger digi");
               put(preTriggerBXs, oc_pretrig, detid, " ME21 CLCT pre-trigger BX");
               put(copads, oc_gemcopad, gemId, " GEM coincidence pad");
+              put(alctpretriggerV, oc_alctpretrigger, detid, " ME21 ALCT pre-trigger digi");
             }
             // running upgraded ME2/1-ME3/1-ME4/1 TMBs (without GEMs or RPCs)
-            else if ((stat == 2 or stat == 3 or stat == 4) && ring == 1 && isSLHC_) {
+            else if (isSLHC_ and ring == 1 and
+                     ((stat == 2 and runME21Up_ and !runME21ILT_) || (stat == 3 and runME31Up_) ||
+                      (stat == 4 and runME41Up_))) {
               // run the TMB
               CSCUpgradeMotherboard* utmb = static_cast<CSCUpgradeMotherboard*>(tmb);
               utmb->setCSCGeometry(csc_g);
@@ -308,9 +347,14 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               // get the collections
               const std::vector<CSCCorrelatedLCTDigi>& lctV = utmb->readoutLCTs();
               const std::vector<CSCALCTDigi>& alctV = utmb->alctProc->readoutALCTs();
+              const std::vector<CSCALCTDigi>& alctV_all =
+                  utmb->alctProc->readoutALCTs(CSCConstants::MAX_ALCTS_PER_PROCESSOR);
               const std::vector<CSCCLCTDigi>& clctV = utmb->clctProc->readoutCLCTs();
+              const std::vector<CSCCLCTDigi>& clctV_all =
+                  utmb->clctProc->readoutCLCTs(CSCConstants::MAX_CLCTS_PER_PROCESSOR);
               const std::vector<int>& preTriggerBXs = utmb->clctProc->preTriggerBXs();
               const std::vector<CSCCLCTPreTriggerDigi>& pretriggerV = utmb->clctProc->preTriggerDigis();
+              const std::vector<CSCALCTPreTriggerDigi>& alctpretriggerV = utmb->alctProc->preTriggerDigis();
 
               if (!(alctV.empty() && clctV.empty() && lctV.empty()) and infoV > 1) {
                 LogTrace("L1CSCTrigger") << "CSCTriggerPrimitivesBuilder got results in " << detid;
@@ -319,9 +363,12 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               // put collections in event
               put(lctV, oc_lct, detid, " LCT digi");
               put(alctV, oc_alct, detid, " ALCT digi");
+              put(alctV_all, oc_alct_all, detid, " ALCT digi");
               put(clctV, oc_clct, detid, " CLCT digi");
+              put(clctV_all, oc_clct_all, detid, tmb->getCSCName() + " CLCT digi");
               put(pretriggerV, oc_pretrigger, detid, " CLCT pre-trigger digi");
               put(preTriggerBXs, oc_pretrig, detid, " CLCT pre-trigger BX");
+              put(alctpretriggerV, oc_alctpretrigger, detid, " ALCT pre-trigger digi");
             }
 
             // running non-upgraded TMB
@@ -332,9 +379,14 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               // get the collections
               const std::vector<CSCCorrelatedLCTDigi>& lctV = tmb->readoutLCTs();
               const std::vector<CSCALCTDigi>& alctV = tmb->alctProc->readoutALCTs();
+              const std::vector<CSCALCTDigi>& alctV_all =
+                  tmb->alctProc->readoutALCTs(CSCConstants::MAX_ALCTS_PER_PROCESSOR);
               const std::vector<CSCCLCTDigi>& clctV = tmb->clctProc->readoutCLCTs();
+              const std::vector<CSCCLCTDigi>& clctV_all =
+                  tmb->clctProc->readoutCLCTs(CSCConstants::MAX_CLCTS_PER_PROCESSOR);
               const std::vector<int>& preTriggerBXs = tmb->clctProc->preTriggerBXs();
               const std::vector<CSCCLCTPreTriggerDigi>& pretriggerV = tmb->clctProc->preTriggerDigis();
+              const std::vector<CSCALCTPreTriggerDigi>& alctpretriggerV = tmb->alctProc->preTriggerDigis();
 
               if (!(alctV.empty() && clctV.empty() && lctV.empty()) and infoV > 1) {
                 LogTrace("L1CSCTrigger") << "CSCTriggerPrimitivesBuilder got results in " << detid;
@@ -343,9 +395,12 @@ void CSCTriggerPrimitivesBuilder::build(const CSCBadChambers* badChambers,
               // put collections in event
               put(lctV, oc_lct, detid, tmb->getCSCName() + " LCT digi");
               put(alctV, oc_alct, detid, tmb->getCSCName() + " ALCT digi");
+              put(alctV_all, oc_alct_all, detid, tmb->getCSCName() + " ALCT digi");
               put(clctV, oc_clct, detid, tmb->getCSCName() + " CLCT digi");
+              put(clctV_all, oc_clct_all, detid, tmb->getCSCName() + " CLCT digi");
               put(pretriggerV, oc_pretrigger, detid, tmb->getCSCName() + " CLCT pre-trigger digi");
               put(preTriggerBXs, oc_pretrig, detid, tmb->getCSCName() + " CLCT pre-trigger BX");
+              put(alctpretriggerV, oc_alctpretrigger, detid, tmb->getCSCName() + " ALCT pre-trigger digi");
             }  // non-upgraded TMB
           }
         }

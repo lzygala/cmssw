@@ -12,8 +12,10 @@
 #include <cstdio>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
-#include "boost/shared_array.hpp"
+#include <memory>
+#include <vector>
 
 class RawEventFileWriterForBU {
 public:
@@ -22,9 +24,7 @@ public:
   ~RawEventFileWriterForBU();
 
   void doOutputEvent(FRDEventMsgView const& msg);
-  void doOutputEvent(boost::shared_array<unsigned char>& msg){};
-  void doOutputEventFragment(unsigned char* dataPtr, unsigned long dataSize);
-  //void doFlushFile();
+
   uint32 adler32() const { return (adlerb_ << 16) | adlera_; }
 
   void start() {}
@@ -78,6 +78,7 @@ private:
   std::string destinationDir_;
 
   int microSleep_;
+  unsigned int frdFileVersion_;
 
   uint32 adlera_;
   uint32 adlerb_;

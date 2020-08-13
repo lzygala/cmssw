@@ -1,9 +1,8 @@
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "RecoParticleFlow/PFProducer/interface/BlockElementImporterBase.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElementTrack.h"
-#include "DataFormats/ParticleFlowReco/interface/PFRecTrackFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecTrack.h"
 #include "DataFormats/TrackReco/interface/Track.h"
-#include "DataFormats/MuonReco/interface/MuonFwd.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/Common/interface/ValueMap.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
@@ -16,14 +15,12 @@ public:
         src_(sumes.consumes<reco::PFRecTrackCollection>(conf.getParameter<edm::InputTag>("source"))),
         veto_(sumes.consumes<reco::PFRecTrackCollection>(conf.getParameter<edm::InputTag>("veto"))),
         muons_(sumes.consumes<reco::MuonCollection>(conf.getParameter<edm::InputTag>("muonSrc"))),
+        trackQuality_(reco::TrackBase::qualityByName(conf.getParameter<std::string>("trackQuality"))),
         DPtovPtCut_(conf.getParameter<std::vector<double> >("DPtOverPtCuts_byTrackAlgo")),
         NHitCut_(conf.getParameter<std::vector<unsigned> >("NHitCuts_byTrackAlgo")),
         useIterTracking_(conf.getParameter<bool>("useIterativeTracking")),
-        cleanBadConvBrems_(
-            conf.existsAs<bool>("cleanBadConvertedBrems") ? conf.getParameter<bool>("cleanBadConvertedBrems") : false),
-        debug_(conf.getUntrackedParameter<bool>("debug", false)) {
-    pfmu_ = std::unique_ptr<PFMuonAlgo>(new PFMuonAlgo(conf));
-  }
+        cleanBadConvBrems_(conf.getParameter<bool>("cleanBadConvertedBrems")),
+        muonMaxDPtOPt_(conf.getParameter<double>("muonMaxDPtOPt")) {}
 
   void importToBlock(const edm::Event&, ElementList&) const override;
 
@@ -32,11 +29,11 @@ private:
 
   edm::EDGetTokenT<reco::PFRecTrackCollection> src_, veto_;
   edm::EDGetTokenT<reco::MuonCollection> muons_;
+  const reco::TrackBase::TrackQuality trackQuality_;
   const std::vector<double> DPtovPtCut_;
   const std::vector<unsigned> NHitCut_;
-  const bool useIterTracking_, cleanBadConvBrems_, debug_;
-
-  std::unique_ptr<PFMuonAlgo> pfmu_;
+  const bool useIterTracking_, cleanBadConvBrems_;
+  const double muonMaxDPtOPt_;
 };
 
 DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GeneralTracksImporterWithVeto, "GeneralTracksImporterWithVeto");
@@ -71,7 +68,8 @@ void GeneralTracksImporterWithVeto::importToBlock(const edm::Event& e,
         if (trkel->trackType(reco::PFBlockElement::T_FROM_GAMMACONV) && cRef.empty() && dvRef.isNull() &&
             v0Ref.isNull()) {
           // if the Pt resolution is bad we kill this element
-          if (!PFTrackAlgoTools::goodPtResolution(trkel->trackRef(), DPtovPtCut_, NHitCut_, useIterTracking_, debug_)) {
+          if (!PFTrackAlgoTools::goodPtResolution(
+                  trkel->trackRef(), DPtovPtCut_, NHitCut_, useIterTracking_, trackQuality_)) {
             itr = elems.erase(itr);
             continue;
           }
@@ -119,15 +117,16 @@ void GeneralTracksImporterWithVeto::importToBlock(const edm::Event& e,
     bool thisIsAPotentialMuon = false;
     if (muId != -1) {
       muonref = reco::MuonRef(muons, muId);
-      thisIsAPotentialMuon = ((pfmu_->hasValidTrack(muonref, true) && PFMuonAlgo::isLooseMuon(muonref)) ||
-                              (pfmu_->hasValidTrack(muonref, false) && PFMuonAlgo::isMuon(muonref)));
+      thisIsAPotentialMuon =
+          ((PFMuonAlgo::hasValidTrack(muonref, true, muonMaxDPtOPt_) && PFMuonAlgo::isLooseMuon(muonref)) ||
+           (PFMuonAlgo::hasValidTrack(muonref, false, muonMaxDPtOPt_) && PFMuonAlgo::isMuon(muonref)));
     }
-    if (thisIsAPotentialMuon ||
-        PFTrackAlgoTools::goodPtResolution(pftrackref->trackRef(), DPtovPtCut_, NHitCut_, useIterTracking_, debug_)) {
+    if (thisIsAPotentialMuon || PFTrackAlgoTools::goodPtResolution(
+                                    pftrackref->trackRef(), DPtovPtCut_, NHitCut_, useIterTracking_, trackQuality_)) {
       trkElem = new reco::PFBlockElementTrack(pftrackref);
-      if (thisIsAPotentialMuon && debug_) {
-        std::cout << "Potential Muon P " << pftrackref->trackRef()->p() << " pt " << pftrackref->trackRef()->p()
-                  << std::endl;
+      if (thisIsAPotentialMuon) {
+        LogDebug("GeneralTracksImporterWithVeto")
+            << "Potential Muon P " << pftrackref->trackRef()->p() << " pt " << pftrackref->trackRef()->p() << std::endl;
       }
       if (muId != -1)
         trkElem->setMuonRef(muonref);

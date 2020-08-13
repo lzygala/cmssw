@@ -1,12 +1,12 @@
 #include "DD4hep/DetFactoryHelper.h"
-#include "DataFormats/Math/interface/GeantUnits.h"
+#include "DataFormats/Math/interface/CMSUnits.h"
 #include "DetectorDescription/DDCMS/interface/DDPlugins.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 using namespace std;
 using namespace dd4hep;
 using namespace cms;
-using namespace geant_units::operators;
+using namespace cms_units::operators;
 
 namespace {
   long algorithm(Detector& /* description */, cms::DDParsingContext& ctxt, xml_h e, SensitiveDetector& /* sens */) {
@@ -102,8 +102,9 @@ namespace {
 
       // Positions child with respect to parent
       mother.placeVolume(child, copy, Transform3D(globalRotMatrix, tran));
-      LogDebug("TrackerGeom") << "DDTrackerRingAlgo test " << child << " number " << copy << " positioned in " << mother
-                              << " at " << tran << " with " << globalRotMatrix;
+      LogDebug("TrackerGeom") << "DDTrackerRingAlgo test " << child.data()->GetName() << " number " << copy
+                              << " positioned in " << mother.data()->GetName() << " at " << tran << " with "
+                              << globalRotMatrix;
 
       copy += incrCopyNo;
       phi += delta;

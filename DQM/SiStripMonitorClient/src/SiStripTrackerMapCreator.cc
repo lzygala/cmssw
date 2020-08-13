@@ -78,7 +78,7 @@ void SiStripTrackerMapCreator::createForOffline(const edm::ParameterSet& tkmapPs
     edm::LogError("SiStripTopLevelDirNotFound") << "I cannot find the SiStrip top level directory in the DQM file";
   } else {
     const std::string& mechanicalview_dir = dqm_store.pwd();
-    stripTopLevelDir_ = mechanicalview_dir.substr(0, mechanicalview_dir.find_last_of("/"));
+    stripTopLevelDir_ = mechanicalview_dir.substr(0, mechanicalview_dir.find_last_of('/'));
     edm::LogInfo("SiStripTopLevelDirFound") << "SiStrip top level directory is " << stripTopLevelDir_;
   }
   dqm_store.cd();
@@ -336,7 +336,7 @@ void SiStripTrackerMapCreator::paintTkMapFromHistogram(MonitorElement const* me,
     float fval = 0.0;
     if (name.find("Residuals") != std::string::npos) {
       if (ResidualsRMS_ == true) {
-        if (me->kind() == MonitorElement::DQM_KIND_TPROFILE2D) {
+        if (me->kind() == MonitorElement::Kind::TPROFILE2D) {
           TProfile2D* tp = me->getTProfile2D();
           float fval_prov =
               tp->GetBinError(xyval.ix, xyval.iy) * sqrt(tp->GetBinEntries(tp->GetBin(xyval.ix, xyval.iy)));
@@ -419,10 +419,10 @@ uint16_t SiStripTrackerMapCreator::getDetectorFlagAndComment(DQMStore* const dqm
   }
   std::ostringstream badmodule_path;
   badmodule_path << badmodule_folder << "/" << det_id;
-  LogDebug("SearchBadModule") << badmodule_folder << " exists: " << badmodule_path;
+  LogDebug("SearchBadModule") << badmodule_folder << " exists: " << badmodule_path.str();
 
   auto const* bad_module_me = dqm_store->get(badmodule_path.str());
-  if (bad_module_me && bad_module_me->kind() == MonitorElement::DQM_KIND_INT) {
+  if (bad_module_me && bad_module_me->kind() == MonitorElement::Kind::INT) {
     LogDebug("SearchBadModule") << "Monitor Element found";
     flag = bad_module_me->getIntValue();
     std::string message;
@@ -464,7 +464,7 @@ void SiStripTrackerMapCreator::createInfoFile(std::vector<std::string> const& ma
           << "I cannot find the SiStrip top level directory in the DQM file";
     } else {
       const std::string& mechanicalview_dir = dqm_store.pwd();
-      dirname = mechanicalview_dir.substr(0, mechanicalview_dir.find_last_of("/"));
+      dirname = mechanicalview_dir.substr(0, mechanicalview_dir.find_last_of('/'));
       edm::LogInfo("SiStripTrackerMapCreator::createInfoFile") << "SiStrip top level directory is " << dirname;
     }
     dqm_store.cd();

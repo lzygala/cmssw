@@ -1,3 +1,5 @@
+#include <memory>
+
 #include "RecoTauTag/RecoTau/interface/RecoTauConstructor.h"
 
 #include "RecoTauTag/RecoTau/interface/RecoTauCommonUtilities.h"
@@ -24,7 +26,7 @@ namespace reco::tau {
         minRelPhotonSumPt_outsideSignalCone_(minRelPhotonSumPt_outsideSignalCone),
         pfCands_(pfCands) {
     // Initialize tau
-    tau_.reset(new PFTau());
+    tau_ = std::make_unique<PFTau>();
 
     copyGammas_ = copyGammasFromPiZeros;
     // Initialize our Accessors
@@ -42,7 +44,7 @@ namespace reco::tau {
     // RefVectors
     for (auto const& colkey : collections_) {
       // Build an empty list for each collection
-      sortedCollections_[colkey.first] = SortedListPtr(new SortedListPtr::element_type);
+      sortedCollections_[colkey.first] = std::make_shared<SortedListPtr::element_type>();
     }
 
     tau_->setjetRef(jet);
@@ -324,7 +326,7 @@ namespace reco::tau {
     }
   }  // namespace
 
-  std::auto_ptr<reco::PFTau> RecoTauConstructor::get(bool setupLeadingObjects) {
+  std::unique_ptr<reco::PFTau> RecoTauConstructor::get(bool setupLeadingObjects) {
     LogDebug("TauConstructorGet") << "Start getting";
 
     // Copy the sorted collections into the interal tau refvectors
@@ -414,6 +416,6 @@ namespace reco::tau {
       if (leadingGammaCand != getCollection(kSignal, kGamma)->end())
         tau_->setleadNeutralCand(*leadingGammaCand);
     }
-    return tau_;
+    return std::move(tau_);
   }
 }  // end namespace reco::tau

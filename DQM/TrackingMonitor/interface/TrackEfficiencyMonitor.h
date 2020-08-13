@@ -21,7 +21,7 @@ Monitoring source to measure the track efficiency
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 #include <DQMServices/Core/interface/DQMEDAnalyzer.h>
 
@@ -37,16 +37,12 @@ namespace reco {
 }
 class NavigationSchool;
 
-class DQMStore;
-
 class TrackEfficiencyMonitor : public DQMEDAnalyzer {
 public:
   typedef reco::Track Track;
   typedef reco::TrackCollection TrackCollection;
   explicit TrackEfficiencyMonitor(const edm::ParameterSet&);
   ~TrackEfficiencyMonitor() override;
-  void beginJob(void) override;
-  void endJob(void) override;
   void analyze(const edm::Event&, const edm::EventSetup&) override;
 
   void bookHistograms(DQMStore::IBooker&, edm::Run const&, edm::EventSetup const&) override;

@@ -19,13 +19,15 @@
 #include "FWCore/Framework/interface/ScheduleItems.h"
 #include "FWCore/Framework/interface/EventPrincipal.h"
 #include "FWCore/Framework/interface/LuminosityBlockPrincipal.h"
+#include "FWCore/Framework/interface/ProcessBlockPrincipal.h"
 #include "FWCore/Framework/interface/ExceptionActions.h"
 #include "FWCore/Framework/interface/HistoryAppender.h"
 #include "FWCore/Framework/interface/PathsAndConsumesOfModules.h"
 #include "FWCore/Framework/interface/ESRecordsToProxyIndices.h"
 #include "FWCore/Framework/src/EventSetupsController.h"
-#include "FWCore/Framework/src/streamTransitionAsync.h"
 #include "FWCore/Framework/src/globalTransitionAsync.h"
+#include "FWCore/Framework/src/streamTransitionAsync.h"
+#include "FWCore/Framework/src/TransitionInfoTypes.h"
 #include "FWCore/Framework/interface/DelayedReader.h"
 
 #include "FWCore/ServiceRegistry/interface/ServiceRegistry.h"
@@ -81,7 +83,7 @@ namespace edm {
     //
     // constructors and destructor
     //
-    TestProcessor::TestProcessor(Config const& iConfig)
+    TestProcessor::TestProcessor(Config const& iConfig, ServiceToken iToken)
         : espController_(std::make_unique<eventsetup::EventSetupsController>()),
           historyAppender_(std::make_unique<HistoryAppender>()),
           moduleRegistry_(std::make_shared<ModuleRegistry>()) {
@@ -102,8 +104,7 @@ namespace edm {
 
       //initialize the services
       auto& serviceSets = procDesc->getServicesPSets();
-      ServiceToken token =
-          items.initServices(serviceSets, *psetPtr, ServiceToken(), serviceregistry::kOverlapIsError, true);
+      ServiceToken token = items.initServices(serviceSets, *psetPtr, iToken, serviceregistry::kOverlapIsError, true);
       serviceToken_ = items.addCPRandTNS(*psetPtr, token);
 
       //make the services available
@@ -115,17 +116,18 @@ namespace edm {
       // intialize the event setup provider
       esp_ = espController_->makeProvider(*psetPtr, items.actReg_.get());
 
-      if (not iConfig.esProduceEntries().empty()) {
-        esHelper_ = std::make_unique<EventSetupTestHelper>(iConfig.esProduceEntries());
-        esp_->add(std::dynamic_pointer_cast<eventsetup::DataProxyProvider>(esHelper_));
-        esp_->add(std::dynamic_pointer_cast<EventSetupRecordIntervalFinder>(esHelper_));
-      }
-
       auto nThreads = 1U;
       auto nStreams = 1U;
       auto nConcurrentLumis = 1U;
       auto nConcurrentRuns = 1U;
       preallocations_ = PreallocationConfiguration{nThreads, nStreams, nConcurrentLumis, nConcurrentRuns};
+
+      espController_->setMaxConcurrentIOVs(nStreams, nConcurrentLumis);
+      if (not iConfig.esProduceEntries().empty()) {
+        esHelper_ = std::make_unique<EventSetupTestHelper>(iConfig.esProduceEntries());
+        esp_->add(std::dynamic_pointer_cast<eventsetup::DataProxyProvider>(esHelper_));
+        esp_->add(std::dynamic_pointer_cast<EventSetupRecordIntervalFinder>(esHelper_));
+      }
 
       preg_ = items.preg();
       processConfiguration_ = items.processConfiguration();
@@ -191,6 +193,10 @@ namespace edm {
             std::make_unique<LuminosityBlockPrincipal>(preg_, *processConfiguration_, historyAppender_.get(), index);
         principalCache_.insert(std::move(lp));
       }
+      {
+        auto pb = std::make_unique<ProcessBlockPrincipal>(preg_, *processConfiguration_);
+        principalCache_.insert(std::move(pb));
+      }
     }
 
     TestProcessor::~TestProcessor() noexcept(false) { teardownProcessing(); }
@@ -221,9 +227,121 @@ namespace edm {
           principalCache_.eventPrincipal(0), labelOfTestModule_, processConfiguration_->processName(), result);
     }
 
+    edm::test::LuminosityBlock TestProcessor::testBeginLuminosityBlockImpl(edm::LuminosityBlockNumber_t iNum) {
+      if (not beginJobCalled_) {
+        beginJob();
+      }
+      if (not beginProcessBlockCalled_) {
+        beginProcessBlock();
+      }
+      if (not beginRunCalled_) {
+        beginRun();
+      }
+      if (beginLumiCalled_) {
+        endLuminosityBlock();
+        assert(lumiNumber_ != iNum);
+      }
+      lumiNumber_ = iNum;
+      beginLuminosityBlock();
+
+      if (esHelper_) {
+        //We want each test to have its own ES data products
+        esHelper_->resetAllProxies();
+      }
+
+      return edm::test::LuminosityBlock(lumiPrincipal_, labelOfTestModule_, processConfiguration_->processName());
+    }
+
+    edm::test::LuminosityBlock TestProcessor::testEndLuminosityBlockImpl() {
+      if (not beginJobCalled_) {
+        beginJob();
+      }
+      if (not beginProcessBlockCalled_) {
+        beginProcessBlock();
+      }
+      if (not beginRunCalled_) {
+        beginRun();
+      }
+      if (not beginLumiCalled_) {
+        beginLuminosityBlock();
+      }
+      auto lumi = endLuminosityBlock();
+
+      if (esHelper_) {
+        //We want each test to have its own ES data products
+        esHelper_->resetAllProxies();
+      }
+
+      return edm::test::LuminosityBlock(std::move(lumi), labelOfTestModule_, processConfiguration_->processName());
+    }
+
+    edm::test::Run TestProcessor::testBeginRunImpl(edm::RunNumber_t iNum) {
+      if (not beginJobCalled_) {
+        beginJob();
+      }
+      if (not beginProcessBlockCalled_) {
+        beginProcessBlock();
+      }
+      if (beginRunCalled_) {
+        assert(runNumber_ != iNum);
+        endRun();
+      }
+      runNumber_ = iNum;
+      beginRun();
+
+      if (esHelper_) {
+        //We want each test to have its own ES data products
+        esHelper_->resetAllProxies();
+      }
+
+      return edm::test::Run(
+          principalCache_.runPrincipalPtr(), labelOfTestModule_, processConfiguration_->processName());
+    }
+    edm::test::Run TestProcessor::testEndRunImpl() {
+      if (not beginJobCalled_) {
+        beginJob();
+      }
+      if (not beginProcessBlockCalled_) {
+        beginProcessBlock();
+      }
+      if (not beginRunCalled_) {
+        beginRun();
+      }
+      auto rp = endRun();
+
+      if (esHelper_) {
+        //We want each test to have its own ES data products
+        esHelper_->resetAllProxies();
+      }
+
+      return edm::test::Run(rp, labelOfTestModule_, processConfiguration_->processName());
+    }
+
+    edm::test::ProcessBlock TestProcessor::testBeginProcessBlockImpl() {
+      if (not beginJobCalled_) {
+        beginJob();
+      }
+      beginProcessBlock();
+      return edm::test::ProcessBlock(
+          &principalCache_.processBlockPrincipal(), labelOfTestModule_, processConfiguration_->processName());
+    }
+    edm::test::ProcessBlock TestProcessor::testEndProcessBlockImpl() {
+      if (not beginJobCalled_) {
+        beginJob();
+      }
+      if (not beginProcessBlockCalled_) {
+        beginProcessBlock();
+      }
+      auto pbp = endProcessBlock();
+      return edm::test::ProcessBlock(pbp, labelOfTestModule_, processConfiguration_->processName());
+    }
+
     void TestProcessor::setupProcessing() {
       if (not beginJobCalled_) {
         beginJob();
+      }
+      if (not beginProcessBlockCalled_) {
+        beginProcessBlock();
       }
       if (not beginRunCalled_) {
         beginRun();
@@ -241,6 +359,10 @@ namespace edm {
       if (beginRunCalled_) {
         endRun();
         beginRunCalled_ = false;
+      }
+      if (beginProcessBlockCalled_) {
+        endProcessBlock();
+        beginProcessBlockCalled_ = false;
       }
       if (beginJobCalled_) {
         endJob();
@@ -266,6 +388,8 @@ namespace edm {
       //checkForModuleDependencyCorrectness(pathsAndConsumesOfModules, false);
       actReg_->preBeginJobSignal_(pathsAndConsumesOfModules, processContext_);
 
+      espController_->finishConfiguration();
+
       schedule_->beginJob(*preg_, esp_->recordsToProxyIndices());
       actReg_->postBeginJobSignal_();
 
@@ -273,6 +397,28 @@ namespace edm {
         schedule_->beginStream(i);
       }
       beginJobCalled_ = true;
+    }
+
+    void TestProcessor::beginProcessBlock() {
+      ProcessBlockPrincipal& processBlockPrincipal = principalCache_.processBlockPrincipal();
+      processBlockPrincipal.fillProcessBlockPrincipal(processConfiguration_->processName());
+
+      std::vector<edm::SubProcess> emptyList;
+      {
+        ProcessBlockTransitionInfo transitionInfo(processBlockPrincipal);
+        using Traits = OccurrenceTraits<ProcessBlockPrincipal, BranchActionGlobalBegin>;
+        auto globalWaitTask = make_empty_waiting_task();
+        globalWaitTask->increment_ref_count();
+
+        beginGlobalTransitionAsync<Traits>(
+            WaitingTaskHolder(globalWaitTask.get()), *schedule_, transitionInfo, serviceToken_, emptyList);
+
+        globalWaitTask->wait_for_all();
+        if (globalWaitTask->exceptionPtr() != nullptr) {
+          std::rethrow_exception(*(globalWaitTask->exceptionPtr()));
+        }
+      }
+      beginProcessBlockCalled_ = true;
     }
 
     void TestProcessor::beginRun() {
@@ -286,15 +432,16 @@ namespace edm {
       IOVSyncValue ts(EventID(runPrincipal.run(), 0, 0), runPrincipal.beginTime());
       espController_->eventSetupForInstance(ts);
 
-      auto const& es = esp_->eventSetup();
+      auto const& es = esp_->eventSetupImpl();
 
       std::vector<edm::SubProcess> emptyList;
       {
-        typedef OccurrenceTraits<RunPrincipal, BranchActionGlobalBegin> Traits;
+        RunTransitionInfo transitionInfo(runPrincipal, es);
+        using Traits = OccurrenceTraits<RunPrincipal, BranchActionGlobalBegin>;
         auto globalWaitTask = make_empty_waiting_task();
         globalWaitTask->increment_ref_count();
         beginGlobalTransitionAsync<Traits>(
-            WaitingTaskHolder(globalWaitTask.get()), *schedule_, runPrincipal, ts, es, serviceToken_, emptyList);
+            WaitingTaskHolder(globalWaitTask.get()), *schedule_, transitionInfo, serviceToken_, emptyList);
         globalWaitTask->wait_for_all();
         if (globalWaitTask->exceptionPtr() != nullptr) {
           std::rethrow_exception(*(globalWaitTask->exceptionPtr()));
@@ -313,6 +460,7 @@ namespace edm {
                                             runPrincipal,
                                             ts,
                                             es,
+                                            nullptr,
                                             serviceToken_,
                                             emptyList);
 
@@ -327,6 +475,7 @@ namespace edm {
     void TestProcessor::beginLuminosityBlock() {
       LuminosityBlockAuxiliary aux(runNumber_, lumiNumber_, Timestamp(), Timestamp());
       lumiPrincipal_ = principalCache_.getAvailableLumiPrincipalPtr();
+      lumiPrincipal_->clearPrincipal();
       assert(lumiPrincipal_);
       lumiPrincipal_->setAux(aux);
 
@@ -335,15 +484,16 @@ namespace edm {
       IOVSyncValue ts(EventID(runNumber_, lumiNumber_, eventNumber_), lumiPrincipal_->beginTime());
       espController_->eventSetupForInstance(ts);
 
-      auto const& es = esp_->eventSetup();
+      auto const& es = esp_->eventSetupImpl();
 
       std::vector<edm::SubProcess> emptyList;
       {
-        typedef OccurrenceTraits<LuminosityBlockPrincipal, BranchActionGlobalBegin> Traits;
+        LumiTransitionInfo transitionInfo(*lumiPrincipal_, es, nullptr);
+        using Traits = OccurrenceTraits<LuminosityBlockPrincipal, BranchActionGlobalBegin>;
         auto globalWaitTask = make_empty_waiting_task();
         globalWaitTask->increment_ref_count();
         beginGlobalTransitionAsync<Traits>(
-            WaitingTaskHolder(globalWaitTask.get()), *schedule_, *lumiPrincipal_, ts, es, serviceToken_, emptyList);
+            WaitingTaskHolder(globalWaitTask.get()), *schedule_, transitionInfo, serviceToken_, emptyList);
         globalWaitTask->wait_for_all();
         if (globalWaitTask->exceptionPtr() != nullptr) {
           std::rethrow_exception(*(globalWaitTask->exceptionPtr()));
@@ -362,6 +512,7 @@ namespace edm {
                                             *lumiPrincipal_,
                                             ts,
                                             es,
+                                            nullptr,
                                             serviceToken_,
                                             emptyList);
 
@@ -380,7 +531,7 @@ namespace edm {
       pep->clearEventPrincipal();
       pep->fillEventPrincipal(
           edm::EventAuxiliary(EventID(runNumber_, lumiNumber_, eventNumber_), "", Timestamp(), false),
-          processHistoryRegistry_,
+          nullptr,
           nullptr);
       assert(lumiPrincipal_.get() != nullptr);
       pep->setLuminosityBlockPrincipal(lumiPrincipal_.get());
@@ -402,7 +553,7 @@ namespace edm {
       waitTask->increment_ref_count();
 
       schedule_->processOneEventAsync(
-          edm::WaitingTaskHolder(waitTask.get()), 0, *pep, esp_->eventSetup(), serviceToken_);
+          edm::WaitingTaskHolder(waitTask.get()), 0, *pep, esp_->eventSetupImpl(), serviceToken_);
 
       waitTask->wait_for_all();
       if (waitTask->exceptionPtr() != nullptr) {
@@ -411,16 +562,16 @@ namespace edm {
       ++eventNumber_;
     }
 
-    void TestProcessor::endLuminosityBlock() {
+    std::shared_ptr<LuminosityBlockPrincipal> TestProcessor::endLuminosityBlock() {
+      auto lumiPrincipal = lumiPrincipal_;
       if (beginLumiCalled_) {
         beginLumiCalled_ = false;
-        auto lumiPrincipal = lumiPrincipal_;
         lumiPrincipal_.reset();
 
         IOVSyncValue ts(EventID(runNumber_, lumiNumber_, eventNumber_), lumiPrincipal->endTime());
         espController_->eventSetupForInstance(ts);
 
-        auto const& es = esp_->eventSetup();
+        auto const& es = esp_->eventSetupImpl();
 
         std::vector<edm::SubProcess> emptyList;
 
@@ -437,6 +588,7 @@ namespace edm {
                                             *lumiPrincipal,
                                             ts,
                                             es,
+                                            nullptr,
                                             serviceToken_,
                                             emptyList,
                                             false);
@@ -450,36 +602,33 @@ namespace edm {
           auto globalWaitTask = make_empty_waiting_task();
           globalWaitTask->increment_ref_count();
 
-          typedef OccurrenceTraits<LuminosityBlockPrincipal, BranchActionGlobalEnd> Traits;
-          endGlobalTransitionAsync<Traits>(WaitingTaskHolder(globalWaitTask.get()),
-                                           *schedule_,
-                                           *lumiPrincipal,
-                                           ts,
-                                           es,
-                                           serviceToken_,
-                                           emptyList,
-                                           false);
+          LumiTransitionInfo transitionInfo(*lumiPrincipal, es, nullptr);
+          using Traits = OccurrenceTraits<LuminosityBlockPrincipal, BranchActionGlobalEnd>;
+          endGlobalTransitionAsync<Traits>(
+              WaitingTaskHolder(globalWaitTask.get()), *schedule_, transitionInfo, serviceToken_, emptyList, false);
           globalWaitTask->wait_for_all();
           if (globalWaitTask->exceptionPtr() != nullptr) {
             std::rethrow_exception(*(globalWaitTask->exceptionPtr()));
           }
         }
       }
+      return lumiPrincipal;
     }
 
-    void TestProcessor::endRun() {
+    std::shared_ptr<edm::RunPrincipal> TestProcessor::endRun() {
+      std::shared_ptr<RunPrincipal> rp;
       if (beginRunCalled_) {
         beginRunCalled_ = false;
         ProcessHistoryID phid;
-
-        RunPrincipal& runPrincipal = principalCache_.runPrincipal(phid, runNumber_);
+        rp = principalCache_.runPrincipalPtr(phid, runNumber_);
+        RunPrincipal& runPrincipal = *rp;
 
         IOVSyncValue ts(
             EventID(runPrincipal.run(), LuminosityBlockID::maxLuminosityBlockNumber(), EventID::maxEventNumber()),
             runPrincipal.endTime());
         espController_->eventSetupForInstance(ts);
 
-        auto const& es = esp_->eventSetup();
+        auto const& es = esp_->eventSetupImpl();
 
         std::vector<edm::SubProcess> emptyList;
 
@@ -496,6 +645,7 @@ namespace edm {
                                             runPrincipal,
                                             ts,
                                             es,
+                                            nullptr,
                                             serviceToken_,
                                             emptyList,
                                             false);
@@ -509,15 +659,10 @@ namespace edm {
           auto globalWaitTask = make_empty_waiting_task();
           globalWaitTask->increment_ref_count();
 
-          typedef OccurrenceTraits<RunPrincipal, BranchActionGlobalEnd> Traits;
-          endGlobalTransitionAsync<Traits>(WaitingTaskHolder(globalWaitTask.get()),
-                                           *schedule_,
-                                           runPrincipal,
-                                           ts,
-                                           es,
-                                           serviceToken_,
-                                           emptyList,
-                                           false);
+          RunTransitionInfo transitionInfo(runPrincipal, es);
+          using Traits = OccurrenceTraits<RunPrincipal, BranchActionGlobalEnd>;
+          endGlobalTransitionAsync<Traits>(
+              WaitingTaskHolder(globalWaitTask.get()), *schedule_, transitionInfo, serviceToken_, emptyList, false);
           globalWaitTask->wait_for_all();
           if (globalWaitTask->exceptionPtr() != nullptr) {
             std::rethrow_exception(*(globalWaitTask->exceptionPtr()));
@@ -526,9 +671,38 @@ namespace edm {
 
         principalCache_.deleteRun(phid, runNumber_);
       }
+      return rp;
+    }
+
+    ProcessBlockPrincipal const* TestProcessor::endProcessBlock() {
+      ProcessBlockPrincipal& processBlockPrincipal = principalCache_.processBlockPrincipal();
+      if (beginProcessBlockCalled_) {
+        beginProcessBlockCalled_ = false;
+
+        std::vector<edm::SubProcess> emptyList;
+        {
+          auto globalWaitTask = make_empty_waiting_task();
+          globalWaitTask->increment_ref_count();
+
+          ProcessBlockTransitionInfo transitionInfo(processBlockPrincipal);
+          using Traits = OccurrenceTraits<ProcessBlockPrincipal, BranchActionGlobalEnd>;
+          endGlobalTransitionAsync<Traits>(
+              WaitingTaskHolder(globalWaitTask.get()), *schedule_, transitionInfo, serviceToken_, emptyList, false);
+          globalWaitTask->wait_for_all();
+          if (globalWaitTask->exceptionPtr() != nullptr) {
+            std::rethrow_exception(*(globalWaitTask->exceptionPtr()));
+          }
+        }
+      }
+      return &processBlockPrincipal;
     }
 
     void TestProcessor::endJob() {
+      if (!beginJobCalled_) {
+        return;
+      }
+      beginJobCalled_ = false;
+
       // Collects exceptions, so we don't throw before all operations are performed.
       ExceptionCollector c(
           "Multiple exceptions were thrown while executing endJob. An exception message follows for each.\n");
@@ -562,14 +736,6 @@ namespace edm {
     }
 
     void TestProcessor::setEventNumber(edm::EventNumber_t iEv) { eventNumber_ = iEv; }
-
-    //
-    // const member functions
-    //
-
-    //
-    // static member functions
-    //
 
   }  // namespace test
 }  // namespace edm

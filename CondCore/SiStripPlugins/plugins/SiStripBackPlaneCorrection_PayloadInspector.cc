@@ -46,8 +46,9 @@ namespace {
       Base::setSingleIov(true);
     }
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> > &iovs) override {
-      for (auto const &iov : iovs) {
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      for (auto const &iov : tag.iovs) {
         std::shared_ptr<SiStripBackPlaneCorrection> payload = Base::fetchPayload(std::get<1>(iov));
         if (payload.get()) {
           std::map<uint32_t, float> BPMap_ = payload->getBackPlaneCorrections();
@@ -75,7 +76,7 @@ namespace {
       auto iov = iovs.front();
       std::shared_ptr<SiStripBackPlaneCorrection> payload = fetchPayload(std::get<1>(iov));
 
-      std::unique_ptr<TrackerMap> tmap = std::unique_ptr<TrackerMap>(new TrackerMap("SiStripBackPlaneCorrection"));
+      std::unique_ptr<TrackerMap> tmap = std::make_unique<TrackerMap>("SiStripBackPlaneCorrection");
       tmap->setPalette(1);
       std::string titleMap = "TrackerMap of SiStrip BP correction per module, payload : " + std::get<1>(iov);
       tmap->setTitle(titleMap);
@@ -131,12 +132,12 @@ namespace {
 
       TCanvas canvas("Partion summary", "partition summary", 1200, 1000);
       canvas.cd();
-      auto h1 = std::unique_ptr<TH1F>(
-          new TH1F("byRegion",
-                   "SiStrip Backplane correction average by partition;; average SiStrip BackPlane Correction",
-                   map.size(),
-                   0.,
-                   map.size()));
+      auto h1 = std::make_unique<TH1F>(
+          "byRegion",
+          "SiStrip Backplane correction average by partition;; average SiStrip BackPlane Correction",
+          map.size(),
+          0.,
+          map.size());
       h1->SetStats(false);
       canvas.SetBottomMargin(0.18);
       canvas.SetLeftMargin(0.17);

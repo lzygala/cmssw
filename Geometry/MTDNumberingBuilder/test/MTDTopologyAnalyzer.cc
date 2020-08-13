@@ -42,6 +42,8 @@ public:
 
   void theBaseNumber(const DDGeoHistory& gh);
 
+  std::string noNSgeoHistory(const DDGeoHistory& gh);
+
   MTDBaseNumber thisN_;
   BTLNumberingScheme btlNS_;
   ETLNumberingScheme etlNS_;
@@ -55,7 +57,7 @@ void MTDTopologyAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
   iSetup.get<MTDTopologyRcd>().get(mtdTopo);
   edm::LogInfo("MTDTopologyAnalyzer") << "MTD topology mode = " << mtdTopo->getMTDTopologyMode();
 
-  // Build DetIds based on DDD description, then extract information from topology and compare
+  // Build DetIds based on DD description, then extract information from topology and compare
 
   std::string label;
 
@@ -90,19 +92,28 @@ void MTDTopologyAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
 
     size_t num = fv.geoHistory().size();
 
-    if (fv.geoHistory()[num - 1].logicalPart().name() == "btl:BarrelTimingLayer") {
+    if (fv.geoHistory()[num - 1].logicalPart().name().name() == "BarrelTimingLayer") {
       isBarrel = true;
       limit = num;
-      ddtop = "btl:BarrelTimingLayer";
-    } else if (fv.geoHistory()[num - 1].logicalPart().name() == "etl:EndcapTimingLayer") {
+      ddtop = "BarrelTimingLayer";
+    } else if (fv.geoHistory()[num - 1].logicalPart().name().name() == "EndcapTimingLayer") {
       isBarrel = false;
       limit = num;
-      ddtop = "etl:EndcapTimingLayer";
+      ddtop = "EndcapTimingLayer";
     }
 
-    if (num <= limit && fv.geoHistory()[num - 1].logicalPart().name().fullname() != ddtop) {
+#ifdef EDM_ML_DEBUG
+    edm::LogVerbatim("MTDTopologyAnalyzer") << "Top level volume: " << ddtop;
+#endif
+
+    if (num <= limit && fv.geoHistory()[num - 1].logicalPart().name().name() != ddtop) {
       ddtop.clear();
     }
+
+#ifdef EDM_ML_DEBUG
+    edm::LogVerbatim("MTDTopologyAnalyzer")
+        << "Top level volume: " << ddtop << " at history " << fv.geoHistory()[num - 1].logicalPart().name().name();
+#endif
 
     if (!ddtop.empty()) {
       // Actions for MTD volumes: searchg for sensitive detectors
@@ -110,10 +121,12 @@ void MTDTopologyAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
       bool isSens = false;
 
       if (fv.geoHistory()[num - 1].logicalPart().specifics().size() > 0) {
-        for (auto elem : *(fv.geoHistory()[num - 1].logicalPart().specifics()[0])) {
-          if (elem.second.name() == "SensitiveDetector") {
-            isSens = true;
-            break;
+        for (auto vec : fv.geoHistory()[num - 1].logicalPart().specifics()) {
+          for (auto elem : *vec) {
+            if (elem.second.name() == "SensitiveDetector") {
+              isSens = true;
+              break;
+            }
           }
         }
       }
@@ -123,17 +136,17 @@ void MTDTopologyAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetu
       if (isSens) {
         theBaseNumber(fv.geoHistory());
 
-        edm::LogInfo("MTDTopologyAnalyzer") << fv.geoHistory();
+        edm::LogVerbatim("MTDTopologyAnalyzer") << noNSgeoHistory(fv.geoHistory());
 
         if (isBarrel) {
           BTLDetId theId(btlNS_.getUnitID(thisN_));
           DetId localId(theId.rawId());
-          edm::LogInfo("MTDTopologAnalyzer") << mtdTopo->print(localId) << "\n" << theId;
+          edm::LogVerbatim("MTDTopologAnalyzer") << mtdTopo->print(localId) << "\n" << theId;
           ;
         } else {
           ETLDetId theId(etlNS_.getUnitID(thisN_));
           DetId localId(theId.rawId());
-          edm::LogInfo("MTDTopologAnalyzer") << mtdTopo->print(localId) << "\n" << theId;
+          edm::LogVerbatim("MTDTopologAnalyzer") << mtdTopo->print(localId) << "\n" << theId;
           ;
         }
       }
@@ -148,13 +161,29 @@ void MTDTopologyAnalyzer::theBaseNumber(const DDGeoHistory& gh) {
   thisN_.setSize(gh.size());
 
   for (uint i = gh.size(); i-- > 0;) {
-    std::string name(gh[i].logicalPart().name().fullname());
+    std::string name(gh[i].logicalPart().name().name());
     int copyN(gh[i].copyno());
     thisN_.addLevel(name, copyN);
 #ifdef EDM_ML_DEBUG
     edm::LogInfo("MTDTopologyAnalyzer") << name << " " << copyN;
 #endif
   }
+}
+
+std::string MTDTopologyAnalyzer::noNSgeoHistory(const DDGeoHistory& gh) {
+  std::string output(" - ");
+  for (uint i = 0; i < gh.size(); i++) {
+    output += gh[i].logicalPart().name().name();
+    output += "[";
+    output += std::to_string(gh[i].copyno());
+    output += "]/";
+  }
+
+#ifdef EDM_ML_DEBUG
+  edm::LogInfo("MTDTopologyAnalyzer") << output;
+#endif
+
+  return output;
 }
 
 //define this as a plug-in

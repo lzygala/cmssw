@@ -20,8 +20,8 @@
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/Common/interface/TriggerResults.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
-#include "DQMServices/Core/interface/oneDQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMStore.h"
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 #include "RecoVertex/BeamSpotProducer/interface/BSTrkParameters.h"
 #include "RecoVertex/BeamSpotProducer/interface/BeamFitter.h"
 #include <fstream>
@@ -30,7 +30,7 @@
 // class declaration
 //
 
-class BeamMonitor : public one::DQMEDAnalyzer<edm::one::WatchLuminosityBlocks> {
+class BeamMonitor : public DQMOneEDAnalyzer<edm::one::WatchLuminosityBlocks> {
 public:
   BeamMonitor(const edm::ParameterSet&);
 
@@ -44,7 +44,7 @@ protected:
 
   void endLuminosityBlock(const edm::LuminosityBlock& lumiSeg, const edm::EventSetup& c) override;
   // EndRun
-  void endRun(const edm::Run& r, const edm::EventSetup& c) override;
+  void dqmEndRun(const edm::Run& r, const edm::EventSetup& c) override;
 
 private:
   void FitAndFill(const edm::LuminosityBlock& lumiSeg, int&, int&, int&);
@@ -68,6 +68,7 @@ private:
   const double dzMin_;
   const double dzMax_;
   std::string monitorName_;
+  std::string recordName_;                  // output BeamSpotOnline Record name
   edm::EDGetTokenT<reco::BeamSpot> bsSrc_;  // beam spot
   edm::EDGetTokenT<reco::TrackCollection> tracksLabel_;
   edm::EDGetTokenT<reco::VertexCollection> pvSrc_;  // primary vertex

@@ -22,18 +22,15 @@
 
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
-#include <DQMServices/Core/interface/DQMEDAnalyzer.h>
+#include <DQMServices/Core/interface/DQMOneEDAnalyzer.h>
 
 #include <string>
 #include <map>
 #include <vector>
 
-class DQMStore;
-class MonitorElement;
 class DTGeometry;
 
-class DTEfficiencyTask : public one::DQMEDAnalyzer<edm::one::WatchLuminosityBlocks> {
+class DTEfficiencyTask : public DQMOneEDAnalyzer<edm::one::WatchLuminosityBlocks> {
 public:
   /// Constructor
   DTEfficiencyTask(const edm::ParameterSet& pset);

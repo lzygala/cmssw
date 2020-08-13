@@ -93,8 +93,10 @@ process.generator = cms.EDProducer("FlatRandomEThetaGunProducer",
 )
 process.VtxSmeared.MeanZ = -3600.0
 process.VtxSmeared.SigmaZ = 0
-process.HGCalTBAnalyzer.DoDigis = False
-process.HGCalTBAnalyzer.DoRecHits = False
+process.HGCalTBAnalyzer.doDigis = False
+process.HGCalTBAnalyzer.doRecHits = False
+process.g4SimHits.StackingAction.TrackNeutrino = True
+
 
 # Path and EndPath definitions
 process.generation_step = cms.Path(process.pgen)

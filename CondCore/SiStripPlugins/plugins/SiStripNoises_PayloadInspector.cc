@@ -30,6 +30,7 @@
 #include <memory>
 #include <sstream>
 #include <iostream>
+#include <boost/tokenizer.hpp>
 
 // include ROOT
 #include "TH2F.h"
@@ -50,17 +51,18 @@ namespace {
     test class
   *************************************************/
 
-  class SiStripNoisesTest : public cond::payloadInspector::Histogram1D<SiStripNoises> {
+  class SiStripNoisesTest
+      : public cond::payloadInspector::Histogram1D<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
   public:
     SiStripNoisesTest()
-        : cond::payloadInspector::Histogram1D<SiStripNoises>("SiStrip Noise test", "SiStrip Noise test", 10, 0.0, 10.0),
+        : cond::payloadInspector::Histogram1D<SiStripNoises, cond::payloadInspector::SINGLE_IOV>(
+              "SiStrip Noise test", "SiStrip Noise test", 10, 0.0, 10.0),
           m_trackerTopo{StandaloneTrackerTopology::fromTrackerParametersXMLFile(
-              edm::FileInPath("Geometry/TrackerCommonData/data/trackerParameters.xml").fullPath())} {
-      Base::setSingleIov(true);
-    }
+              edm::FileInPath("Geometry/TrackerCommonData/data/trackerParameters.xml").fullPath())} {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      for (auto const& iov : iovs) {
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      for (auto const& iov : tag.iovs) {
         std::shared_ptr<SiStripNoises> payload = Base::fetchPayload(std::get<1>(iov));
         if (payload.get()) {
           fillWithValue(1.);
@@ -95,20 +97,191 @@ namespace {
   };
 
   /************************************************
+    SiStrip Noise Profile of 1 IOV for one selected DetId
+  *************************************************/
+
+  class SiStripNoisePerDetId
+      : public cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
+  public:
+    SiStripNoisePerDetId()
+        : cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV>(
+              "SiStrip Noise values Per DetId") {
+      cond::payloadInspector::PlotBase::addInputParam("DetIds");
+    }
+
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      auto iov = tag.iovs.front();
+      auto tagname = tag.name;
+      std::shared_ptr<SiStripNoises> payload = fetchPayload(std::get<1>(iov));
+
+      std::vector<uint32_t> the_detids = {};
+
+      auto paramValues = cond::payloadInspector::PlotBase::inputParamValues();
+      auto ip = paramValues.find("DetIds");
+      if (ip != paramValues.end()) {
+        auto input = boost::lexical_cast<std::string>(ip->second);
+        typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
+        boost::char_separator<char> sep{","};
+        tokenizer tok{input, sep};
+        for (const auto& t : tok) {
+          the_detids.push_back(atoi(t.c_str()));
+        }
+      } else {
+        edm::LogWarning("SiStripNoisePerDetId")
+            << "\n WARNING!!!! \n The needed parameter DetIds has not been passed. Will use all Strip DetIds! \n\n";
+        the_detids.push_back(0xFFFFFFFF);
+      }
+
+      size_t ndets = the_detids.size();
+      std::vector<std::shared_ptr<TH1F>> hnoise;
+      std::vector<std::shared_ptr<TLegend>> legends;
+      std::vector<unsigned int> v_nAPVs;
+      std::vector<std::vector<std::shared_ptr<TLine>>> lines;
+      hnoise.reserve(ndets);
+      legends.reserve(ndets);
+
+      // determine how the plot will be paginated
+      auto sides = getClosestFactors(the_detids.size());
+      edm::LogPrint("SiStripNoisePerDetId") << "Aspect ratio: " << sides.first << ":" << sides.second << std::endl;
+
+      if (payload.get()) {
+        //=========================
+        TCanvas canvas("ByDetId", "ByDetId", sides.second * 800, sides.first * 600);
+        canvas.Divide(sides.second, sides.first);
+        edm::FileInPath fp_ = edm::FileInPath("CalibTracker/SiStripCommon/data/SiStripDetInfo.dat");
+        SiStripDetInfoFileReader* reader = new SiStripDetInfoFileReader(fp_.fullPath());
+
+        for (const auto& the_detid : the_detids) {
+          edm::LogPrint("SiStripNoisePerDetId") << "DetId:" << the_detid << std::endl;
+
+          unsigned int nAPVs = reader->getNumberOfApvsAndStripLength(the_detid).first;
+          if (nAPVs == 0)
+            nAPVs = 6;
+          v_nAPVs.push_back(nAPVs);
+
+          auto histo =
+              std::make_shared<TH1F>(Form("Noise profile_%s", std::to_string(the_detid).c_str()),
+                                     Form("SiStrip Noise profile for DetId: %s;Strip number;SiStrip Noise [ADC counts]",
+                                          std::to_string(the_detid).c_str()),
+                                     128 * nAPVs,
+                                     -0.5,
+                                     (128 * nAPVs) - 0.5);
+
+          histo->SetStats(false);
+          histo->SetTitle("");
+
+          if (the_detid != 0xFFFFFFFF) {
+            fillHisto(payload, histo, the_detid);
+          } else {
+            auto allDetIds = reader->getAllDetIds();
+            for (const auto& id : allDetIds) {
+              fillHisto(payload, histo, id);
+            }
+          }
+
+          SiStripPI::makeNicePlotStyle(histo.get());
+          histo->GetYaxis()->SetTitleOffset(1.0);
+          hnoise.push_back(histo);
+        }  // loop on the detids
+
+        for (size_t index = 0; index < ndets; index++) {
+          canvas.cd(index + 1);
+          canvas.cd(index + 1)->SetBottomMargin(0.11);
+          canvas.cd(index + 1)->SetTopMargin(0.06);
+          canvas.cd(index + 1)->SetLeftMargin(0.10);
+          canvas.cd(index + 1)->SetRightMargin(0.02);
+          hnoise.at(index)->Draw();
+          hnoise.at(index)->GetYaxis()->SetRangeUser(0, hnoise.at(index)->GetMaximum() * 1.2);
+          canvas.cd(index)->Update();
+
+          std::vector<int> boundaries;
+          for (size_t b = 0; b < v_nAPVs.at(index); b++) {
+            boundaries.push_back(b * 128);
+          }
+
+          std::vector<std::shared_ptr<TLine>> linesVec;
+          for (const auto& bound : boundaries) {
+            auto line = std::make_shared<TLine>(hnoise.at(index)->GetBinLowEdge(bound),
+                                                canvas.cd(index + 1)->GetUymin(),
+                                                hnoise.at(index)->GetBinLowEdge(bound),
+                                                canvas.cd(index + 1)->GetUymax());
+            line->SetLineWidth(1);
+            line->SetLineStyle(9);
+            line->SetLineColor(2);
+            linesVec.push_back(line);
+          }
+          lines.push_back(linesVec);
+
+          for (const auto& line : lines.at(index)) {
+            line->Draw("same");
+          }
+
+          canvas.cd(index + 1);
+
+          auto ltx = TLatex();
+          ltx.SetTextFont(62);
+          ltx.SetTextSize(0.05);
+          ltx.SetTextAlign(11);
+          ltx.DrawLatexNDC(gPad->GetLeftMargin(),
+                           1 - gPad->GetTopMargin() + 0.01,
+                           Form("SiStrip Noise profile for DetId %s", std::to_string(the_detids[index]).c_str()));
+
+          legends.push_back(std::make_shared<TLegend>(0.55, 0.83, 0.95, 0.93));
+          legends.at(index)->SetHeader(tagname.c_str(), "C");  // option "C" allows to center the header
+          legends.at(index)->AddEntry(
+              hnoise.at(index).get(), ("IOV: " + std::to_string(std::get<0>(iov))).c_str(), "PL");
+          legends.at(index)->SetTextSize(0.045);
+          legends.at(index)->Draw("same");
+        }
+
+        std::string fileName(m_imageFileName);
+        canvas.SaveAs(fileName.c_str());
+      }  // payload
+      return true;
+    }  // fill
+
+  private:
+    int nextPerfectSquare(int N) { return std::floor(sqrt(N)) + 1; }
+
+    std::pair<int, int> getClosestFactors(int input) {
+      if ((input % 2 != 0) && input > 1) {
+        input += 1;
+      }
+
+      int testNum = (int)sqrt(input);
+      while (input % testNum != 0) {
+        testNum--;
+      }
+      return std::make_pair(testNum, input / testNum);
+    }
+
+    void fillHisto(const std::shared_ptr<SiStripNoises> payload, std::shared_ptr<TH1F>& histo, uint32_t the_detid) {
+      int nstrip = 0;
+      SiStripNoises::Range range = payload->getRange(the_detid);
+      for (int it = 0; it < (range.second - range.first) * 8 / 9; ++it) {
+        auto noise = payload->getNoise(it, range);
+        nstrip++;
+        histo->AddBinContent(nstrip, noise);
+      }  // end of loop on strips
+    }
+  };
+
+  /************************************************
     1d histogram of SiStripNoises of 1 IOV 
   *************************************************/
 
   // inherit from one of the predefined plot class: Histogram1D
-  class SiStripNoiseValue : public cond::payloadInspector::Histogram1D<SiStripNoises> {
+  class SiStripNoiseValue
+      : public cond::payloadInspector::Histogram1D<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
   public:
     SiStripNoiseValue()
-        : cond::payloadInspector::Histogram1D<SiStripNoises>(
-              "SiStrip Noise values", "SiStrip Noise values", 100, 0.0, 10.0) {
-      Base::setSingleIov(true);
-    }
+        : cond::payloadInspector::Histogram1D<SiStripNoises, cond::payloadInspector::SINGLE_IOV>(
+              "SiStrip Noise values", "SiStrip Noise values", 100, 0.0, 10.0) {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      for (auto const& iov : iovs) {
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      for (auto const& iov : tag.iovs) {
         std::shared_ptr<SiStripNoises> payload = Base::fetchPayload(std::get<1>(iov));
         if (payload.get()) {
           std::vector<uint32_t> detid;
@@ -129,19 +302,59 @@ namespace {
   };
 
   /************************************************
+    1d histogram of SiStripNoises of 1 IOV per Detid
+  *************************************************/
+
+  // inherit from one of the predefined plot class: Histogram1D
+  class SiStripNoiseValuePerDetId
+      : public cond::payloadInspector::Histogram1D<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
+  public:
+    SiStripNoiseValuePerDetId()
+        : cond::payloadInspector::Histogram1D<SiStripNoises, cond::payloadInspector::SINGLE_IOV>(
+              "SiStrip Noise values per DetId", "SiStrip Noise values per DetId", 100, 0.0, 10.0) {
+      cond::payloadInspector::PlotBase::addInputParam("DetId");
+    }
+
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      for (auto const& iov : tag.iovs) {
+        std::shared_ptr<SiStripNoises> payload = Base::fetchPayload(std::get<1>(iov));
+        unsigned int the_detid(0xFFFFFFFF);
+        auto paramValues = cond::payloadInspector::PlotBase::inputParamValues();
+        auto ip = paramValues.find("DetId");
+        if (ip != paramValues.end()) {
+          the_detid = boost::lexical_cast<unsigned int>(ip->second);
+        }
+
+        if (payload.get()) {
+          SiStripNoises::Range range = payload->getRange(the_detid);
+          for (int it = 0; it < (range.second - range.first) * 8 / 9; ++it) {
+            auto noise = payload->getNoise(it, range);
+            //to be used to fill the histogram
+            fillWithValue(noise);
+          }  // loop over APVs
+        }    // payload
+      }      // iovs
+      return true;
+    }  // fill
+  };
+
+  /************************************************
     templated 1d histogram of SiStripNoises of 1 IOV
   *************************************************/
 
   // inherit from one of the predefined plot class: PlotImage
   template <SiStripPI::OpMode op_mode_>
-  class SiStripNoiseDistribution : public cond::payloadInspector::PlotImage<SiStripNoises> {
+  class SiStripNoiseDistribution
+      : public cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
   public:
-    SiStripNoiseDistribution() : cond::payloadInspector::PlotImage<SiStripNoises>("SiStrip Noise values") {
-      setSingleIov(true);
+    SiStripNoiseDistribution()
+        : cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV>("SiStrip Noise values") {
     }
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      auto iov = iovs.front();
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      auto iov = tag.iovs.front();
 
       TGaxis::SetMaxDigits(3);
       gStyle->SetOptStat("emr");
@@ -201,7 +414,7 @@ namespace {
       }
 
       //=========================
-      TCanvas canvas("Partion summary", "partition summary", 1200, 1000);
+      TCanvas canvas("Partition summary", "partition summary", 1200, 1000);
       canvas.cd();
       canvas.SetBottomMargin(0.11);
       canvas.SetTopMargin(0.07);
@@ -259,8 +472,8 @@ namespace {
     SiStripNoiseDistributionComparisonBase()
         : cond::payloadInspector::PlotImage<SiStripNoises>("SiStrip Noise values comparison") {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      std::vector<std::tuple<cond::Time_t, cond::Hash> > sorted_iovs = iovs;
+    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash>>& iovs) override {
+      std::vector<std::tuple<cond::Time_t, cond::Hash>> sorted_iovs = iovs;
 
       // make absolute sure the IOVs are sortd by since
       std::sort(begin(sorted_iovs), end(sorted_iovs), [](auto const& t1, auto const& t2) {
@@ -399,7 +612,7 @@ namespace {
       h_last.SetLineColor(kBlue);
 
       //=========================
-      TCanvas canvas("Partion summary", "partition summary", 1200, 1000);
+      TCanvas canvas("Partition summary", "partition summary", 1200, 1000);
       canvas.cd();
       canvas.SetBottomMargin(0.11);
       canvas.SetLeftMargin(0.13);
@@ -470,8 +683,8 @@ namespace {
     SiStripNoiseValueComparisonBase()
         : cond::payloadInspector::PlotImage<SiStripNoises>("SiStrip Noise values comparison") {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      std::vector<std::tuple<cond::Time_t, cond::Hash> > sorted_iovs = iovs;
+    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash>>& iovs) override {
+      std::vector<std::tuple<cond::Time_t, cond::Hash>> sorted_iovs = iovs;
 
       // make absolute sure the IOVs are sortd by since
       std::sort(begin(sorted_iovs), end(sorted_iovs), [](auto const& t1, auto const& t2) {
@@ -484,24 +697,24 @@ namespace {
       std::shared_ptr<SiStripNoises> f_payload = fetchPayload(std::get<1>(firstiov));
       std::shared_ptr<SiStripNoises> l_payload = fetchPayload(std::get<1>(lastiov));
 
-      auto h_first = std::unique_ptr<TH1F>(
-          new TH1F("f_Noise",
-                   Form("Strip noise values comparison [%s,%s];Strip Noise [ADC counts];n. strips",
-                        std::to_string(std::get<0>(firstiov)).c_str(),
-                        std::to_string(std::get<0>(lastiov)).c_str()),
-                   100,
-                   0.1,
-                   10.));
+      auto h_first =
+          std::make_unique<TH1F>("f_Noise",
+                                 Form("Strip noise values comparison [%s,%s];Strip Noise [ADC counts];n. strips",
+                                      std::to_string(std::get<0>(firstiov)).c_str(),
+                                      std::to_string(std::get<0>(lastiov)).c_str()),
+                                 100,
+                                 0.1,
+                                 10.);
       h_first->SetStats(false);
 
-      auto h_last = std::unique_ptr<TH1F>(
-          new TH1F("l_Noise",
-                   Form("Strip noise values comparison [%s,%s];Strip Noise [ADC counts];n. strips",
-                        std::to_string(std::get<0>(firstiov)).c_str(),
-                        std::to_string(std::get<0>(lastiov)).c_str()),
-                   100,
-                   0.1,
-                   10.));
+      auto h_last =
+          std::make_unique<TH1F>("l_Noise",
+                                 Form("Strip noise values comparison [%s,%s];Strip Noise [ADC counts];n. strips",
+                                      std::to_string(std::get<0>(firstiov)).c_str(),
+                                      std::to_string(std::get<0>(lastiov)).c_str()),
+                                 100,
+                                 0.1,
+                                 10.);
       h_last->SetStats(false);
 
       std::vector<uint32_t> f_detid;
@@ -543,7 +756,7 @@ namespace {
       h_last->SetLineColor(kBlue);
 
       //=========================
-      TCanvas canvas("Partion summary", "partition summary", 1200, 1000);
+      TCanvas canvas("Partition summary", "partition summary", 1200, 1000);
       canvas.cd();
       canvas.SetBottomMargin(0.11);
       canvas.SetLeftMargin(0.13);
@@ -587,22 +800,22 @@ namespace {
   *************************************************/
 
   template <SiStripPI::estimator est>
-  class SiStripNoiseTrackerMap : public cond::payloadInspector::PlotImage<SiStripNoises> {
+  class SiStripNoiseTrackerMap
+      : public cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
   public:
     SiStripNoiseTrackerMap()
-        : cond::payloadInspector::PlotImage<SiStripNoises>("Tracker Map of SiStripNoise " + estimatorType(est) +
-                                                           " per module") {
-      setSingleIov(true);
-    }
+        : cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV>(
+              "Tracker Map of SiStripNoise " + estimatorType(est) + " per module") {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      auto iov = iovs.front();
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      auto iov = tag.iovs.front();
       std::shared_ptr<SiStripNoises> payload = fetchPayload(std::get<1>(iov));
 
       std::string titleMap =
           "Tracker Map of Noise " + estimatorType(est) + " per module (payload : " + std::get<1>(iov) + ")";
 
-      std::unique_ptr<TrackerMap> tmap = std::unique_ptr<TrackerMap>(new TrackerMap("SiStripNoises"));
+      std::unique_ptr<TrackerMap> tmap = std::make_unique<TrackerMap>("SiStripNoises");
       tmap->setTitle(titleMap);
       tmap->setPalette(1);
 
@@ -691,12 +904,14 @@ namespace {
     SiStrip Noise Tracker Map  (ratio with previous gain per detid)
   *************************************************/
 
-  template <SiStripPI::estimator est, int nsigma>
+  template <SiStripPI::estimator est>
   class SiStripNoiseRatioWithPreviousIOVTrackerMapBase : public cond::payloadInspector::PlotImage<SiStripNoises> {
   public:
     SiStripNoiseRatioWithPreviousIOVTrackerMapBase()
         : cond::payloadInspector::PlotImage<SiStripNoises>("Tracker Map of ratio of SiStripNoises " +
-                                                           estimatorType(est) + "with previous IOV") {}
+                                                           estimatorType(est) + "with previous IOV") {
+      cond::payloadInspector::PlotBase::addInputParam("nsigma");
+    }
 
     std::map<unsigned int, float> computeEstimator(std::shared_ptr<SiStripNoises> payload) {
       std::map<unsigned int, float> info_per_detid;
@@ -754,9 +969,16 @@ namespace {
       return info_per_detid;
     }
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      std::vector<std::tuple<cond::Time_t, cond::Hash> > sorted_iovs = iovs;
+    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash>>& iovs) override {
+      unsigned int nsigma(1);
 
+      auto paramValues = cond::payloadInspector::PlotBase::inputParamValues();
+      auto ip = paramValues.find("nsigma");
+      if (ip != paramValues.end()) {
+        nsigma = boost::lexical_cast<unsigned int>(ip->second);
+      }
+
+      std::vector<std::tuple<cond::Time_t, cond::Hash>> sorted_iovs = iovs;
       std::sort(begin(sorted_iovs), end(sorted_iovs), [](auto const& t1, auto const& t2) {
         return std::get<0>(t1) < std::get<0>(t2);
       });
@@ -775,7 +997,7 @@ namespace {
       titleMap += ")";
       titleMap += +" " + std::to_string(nsigma) + " std. dev. saturation";
 
-      std::unique_ptr<TrackerMap> tmap = std::unique_ptr<TrackerMap>(new TrackerMap("SiStripNoises"));
+      std::unique_ptr<TrackerMap> tmap = std::make_unique<TrackerMap>("SiStripNoises");
       tmap->setTitle(titleMap);
       tmap->setPalette(1);
 
@@ -805,92 +1027,58 @@ namespace {
     }
   };
 
-  template <SiStripPI::estimator est, int nsigma>
+  template <SiStripPI::estimator est>
   class SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag
-      : public SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est, nsigma> {
+      : public SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est> {
   public:
-    SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag()
-        : SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est, nsigma>() {
+    SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag() : SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est>() {
       this->setSingleIov(false);
     }
   };
 
-  template <SiStripPI::estimator est, int nsigma>
-  class SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags
-      : public SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est, nsigma> {
+  template <SiStripPI::estimator est>
+  class SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags : public SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est> {
   public:
-    SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags()
-        : SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est, nsigma>() {
+    SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags() : SiStripNoiseRatioWithPreviousIOVTrackerMapBase<est>() {
       this->setTwoTags(true);
     }
   };
 
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::min, 1>
-      SiStripNoiseMin_RatioWithPreviousIOV1sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::max, 1>
-      SiStripNoiseMax_RatioWithPreviousIOV1sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::mean, 1>
-      SiStripNoiseMean_RatioWithPreviousIOV1sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::rms, 1>
-      SiStripNoiseRms_RatioWithPreviousIOV1sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::min, 2>
-      SiStripNoiseMin_RatioWithPreviousIOV2sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::max, 2>
-      SiStripNoiseMax_RatioWithPreviousIOV2sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::mean, 2>
-      SiStripNoiseMean_RatioWithPreviousIOV2sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::rms, 2>
-      SiStripNoiseRms_RatioWithPreviousIOV2sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::min, 3>
-      SiStripNoiseMin_RatioWithPreviousIOV3sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::max, 3>
-      SiStripNoiseMax_RatioWithPreviousIOV3sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::mean, 3>
-      SiStripNoiseMean_RatioWithPreviousIOV3sigmaTrackerMapSingleTag;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::rms, 3>
-      SiStripNoiseRms_RatioWithPreviousIOV3sigmaTrackerMapSingleTag;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::min>
+      SiStripNoiseMin_RatioWithPreviousIOVTrackerMapSingleTag;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::max>
+      SiStripNoiseMax_RatioWithPreviousIOVTrackerMapSingleTag;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::mean>
+      SiStripNoiseMean_RatioWithPreviousIOVTrackerMapSingleTag;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapSingleTag<SiStripPI::rms>
+      SiStripNoiseRms_RatioWithPreviousIOVTrackerMapSingleTag;
 
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::min, 1>
-      SiStripNoiseMin_RatioWithPreviousIOV1sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::max, 1>
-      SiStripNoiseMax_RatioWithPreviousIOV1sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::mean, 1>
-      SiStripNoiseMean_RatioWithPreviousIOV1sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::rms, 1>
-      SiStripNoiseRms_RatioWithPreviousIOV1sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::min, 2>
-      SiStripNoiseMin_RatioWithPreviousIOV2sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::max, 2>
-      SiStripNoiseMax_RatioWithPreviousIOV2sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::mean, 2>
-      SiStripNoiseMean_RatioWithPreviousIOV2sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::rms, 2>
-      SiStripNoiseRms_RatioWithPreviousIOV2sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::min, 3>
-      SiStripNoiseMin_RatioWithPreviousIOV3sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::max, 3>
-      SiStripNoiseMax_RatioWithPreviousIOV3sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::mean, 3>
-      SiStripNoiseMean_RatioWithPreviousIOV3sigmaTrackerMapTwoTags;
-  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::rms, 3>
-      SiStripNoiseRms_RatioWithPreviousIOV3sigmaTrackerMapTwoTags;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::min>
+      SiStripNoiseMin_RatioWithPreviousIOVTrackerMapTwoTags;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::max>
+      SiStripNoiseMax_RatioWithPreviousIOVTrackerMapTwoTags;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::mean>
+      SiStripNoiseMean_RatioWithPreviousIOVTrackerMapTwoTags;
+  typedef SiStripNoiseRatioWithPreviousIOVTrackerMapTwoTags<SiStripPI::rms>
+      SiStripNoiseRms_RatioWithPreviousIOVTrackerMapTwoTags;
 
   /************************************************
   SiStrip Noise Tracker Summaries 
   *************************************************/
 
   template <SiStripPI::estimator est>
-  class SiStripNoiseByRegion : public cond::payloadInspector::PlotImage<SiStripNoises> {
+  class SiStripNoiseByRegion
+      : public cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
   public:
     SiStripNoiseByRegion()
-        : cond::payloadInspector::PlotImage<SiStripNoises>("SiStrip Noise " + estimatorType(est) + " by Region"),
+        : cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV>(
+              "SiStrip Noise " + estimatorType(est) + " by Region"),
           m_trackerTopo{StandaloneTrackerTopology::fromTrackerParametersXMLFile(
-              edm::FileInPath("Geometry/TrackerCommonData/data/trackerParameters.xml").fullPath())} {
-      setSingleIov(true);
-    }
+              edm::FileInPath("Geometry/TrackerCommonData/data/trackerParameters.xml").fullPath())} {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      auto iov = iovs.front();
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      auto iov = tag.iovs.front();
       std::shared_ptr<SiStripNoises> payload = fetchPayload(std::get<1>(iov));
 
       SiStripDetSummary summaryNoise{&m_trackerTopo};
@@ -900,7 +1088,7 @@ namespace {
       std::map<unsigned int, SiStripDetSummary::Values> map = summaryNoise.getCounts();
       //=========================
 
-      TCanvas canvas("Partion summary", "partition summary", 1200, 1000);
+      TCanvas canvas("Partition summary", "partition summary", 1200, 1000);
       canvas.cd();
       auto h1 = std::unique_ptr<TH1F>(
           new TH1F("byRegion",
@@ -1015,8 +1203,8 @@ namespace {
           m_trackerTopo{StandaloneTrackerTopology::fromTrackerParametersXMLFile(
               edm::FileInPath("Geometry/TrackerCommonData/data/trackerParameters.xml").fullPath())} {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      std::vector<std::tuple<cond::Time_t, cond::Hash> > sorted_iovs = iovs;
+    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash>>& iovs) override {
+      std::vector<std::tuple<cond::Time_t, cond::Hash>> sorted_iovs = iovs;
 
       // make absolute sure the IOVs are sortd by since
       std::sort(begin(sorted_iovs), end(sorted_iovs), [](auto const& t1, auto const& t2) {
@@ -1039,7 +1227,7 @@ namespace {
       std::map<unsigned int, SiStripDetSummary::Values> l_map = l_summaryNoise.getCounts();
 
       //=========================
-      TCanvas canvas("Partion summary", "partition summary", 1200, 1000);
+      TCanvas canvas("Partition summary", "partition summary", 1200, 1000);
       canvas.cd();
 
       auto hfirst = std::unique_ptr<TH1F>(
@@ -1210,15 +1398,16 @@ namespace {
   /************************************************
     Noise linearity
   *************************************************/
-  class SiStripNoiseLinearity : public cond::payloadInspector::PlotImage<SiStripNoises> {
+  class SiStripNoiseLinearity
+      : public cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV> {
   public:
     SiStripNoiseLinearity()
-        : cond::payloadInspector::PlotImage<SiStripNoises>("Linearity of Strip Noise as a fuction of strip length") {
-      setSingleIov(true);
-    }
+        : cond::payloadInspector::PlotImage<SiStripNoises, cond::payloadInspector::SINGLE_IOV>(
+              "Linearity of Strip Noise as a fuction of strip length") {}
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      auto iov = iovs.front();
+    bool fill() override {
+      auto tag = PlotBase::getTag<0>();
+      auto iov = tag.iovs.front();
       std::shared_ptr<SiStripNoises> payload = fetchPayload(std::get<1>(iov));
 
       edm::FileInPath fp_ = edm::FileInPath("CalibTracker/SiStripCommon/data/SiStripDetInfo.dat");
@@ -1227,7 +1416,7 @@ namespace {
       std::vector<uint32_t> detid;
       payload->getDetIds(detid);
 
-      std::map<float, std::tuple<int, float, float> > noisePerStripLength;
+      std::map<float, std::tuple<int, float, float>> noisePerStripLength;
 
       for (const auto& d : detid) {
         SiStripNoises::Range range = payload->getRange(d);
@@ -1266,8 +1455,7 @@ namespace {
         //std::cout<<" strip lenght: " << element.first << " avg noise=" << mean <<" +/-" << rms << std::endl;
       }
 
-      auto graph =
-          std::unique_ptr<TGraphErrors>(new TGraphErrors(noisePerStripLength.size(), &x[0], &y[0], &ex[0], &ey[0]));
+      auto graph = std::make_unique<TGraphErrors>(noisePerStripLength.size(), &x[0], &y[0], &ex[0], &ey[0]);
       graph->SetTitle("SiStrip Noise Linearity");
       graph->GetXaxis()->SetTitle("Strip length [cm]");
       graph->GetYaxis()->SetTitle("Average Strip Noise [ADC counts]");
@@ -1302,7 +1490,7 @@ namespace {
       f1->SetLineColor(kBlue);
       f1->Draw("same");
 
-      auto fits = std::unique_ptr<TPaveText>(new TPaveText(0.2, 0.72, 0.6, 0.9, "NDC"));
+      auto fits = std::make_unique<TPaveText>(0.2, 0.72, 0.6, 0.9, "NDC");
       char buffer[255];
       sprintf(buffer, "fit function: p_{0} + p_{1} * l_{strip}");
       fits->AddText(buffer);
@@ -1336,10 +1524,10 @@ namespace {
   *************************************************/
 
   template <StripSubdetector::SubDetector sub>
-  class NoiseHistory : public cond::payloadInspector::HistoryPlot<SiStripNoises, std::pair<double, double> > {
+  class NoiseHistory : public cond::payloadInspector::HistoryPlot<SiStripNoises, std::pair<double, double>> {
   public:
     NoiseHistory()
-        : cond::payloadInspector::HistoryPlot<SiStripNoises, std::pair<double, double> >(
+        : cond::payloadInspector::HistoryPlot<SiStripNoises, std::pair<double, double>>(
               "Average " + SiStripPI::getStringFromSubdet(sub) + " noise vs run number",
               "average " + SiStripPI::getStringFromSubdet(sub) + " Noise") {}
 
@@ -1381,10 +1569,10 @@ namespace {
   *************************************************/
 
   template <StripSubdetector::SubDetector sub>
-  class NoiseRunHistory : public cond::payloadInspector::RunHistoryPlot<SiStripNoises, std::pair<double, double> > {
+  class NoiseRunHistory : public cond::payloadInspector::RunHistoryPlot<SiStripNoises, std::pair<double, double>> {
   public:
     NoiseRunHistory()
-        : cond::payloadInspector::RunHistoryPlot<SiStripNoises, std::pair<double, double> >(
+        : cond::payloadInspector::RunHistoryPlot<SiStripNoises, std::pair<double, double>>(
               "Average " + SiStripPI::getStringFromSubdet(sub) + " noise vs run number",
               "average " + SiStripPI::getStringFromSubdet(sub) + " Noise") {}
 
@@ -1426,10 +1614,10 @@ namespace {
   *************************************************/
 
   template <StripSubdetector::SubDetector sub>
-  class NoiseTimeHistory : public cond::payloadInspector::TimeHistoryPlot<SiStripNoises, std::pair<double, double> > {
+  class NoiseTimeHistory : public cond::payloadInspector::TimeHistoryPlot<SiStripNoises, std::pair<double, double>> {
   public:
     NoiseTimeHistory()
-        : cond::payloadInspector::TimeHistoryPlot<SiStripNoises, std::pair<double, double> >(
+        : cond::payloadInspector::TimeHistoryPlot<SiStripNoises, std::pair<double, double>>(
               "Average " + SiStripPI::getStringFromSubdet(sub) + " noise vs run number",
               "average " + SiStripPI::getStringFromSubdet(sub) + " Noise") {}
 
@@ -1479,21 +1667,21 @@ namespace {
       setSingleIov(false);
     }
 
-    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash> >& iovs) override {
-      std::vector<std::tuple<cond::Time_t, cond::Hash> > sorted_iovs = iovs;
+    bool fill(const std::vector<std::tuple<cond::Time_t, cond::Hash>>& iovs) override {
+      std::vector<std::tuple<cond::Time_t, cond::Hash>> sorted_iovs = iovs;
 
       // make absolute sure the IOVs are sortd by since
       std::sort(begin(sorted_iovs), end(sorted_iovs), [](auto const& t1, auto const& t2) {
         return std::get<0>(t1) < std::get<0>(t2);
       });
 
-      std::unordered_map<int, std::vector<float> > noises_avg;
-      std::unordered_map<int, std::vector<float> > noises_err;
+      std::unordered_map<int, std::vector<float>> noises_avg;
+      std::unordered_map<int, std::vector<float>> noises_err;
       std::vector<float> runs;
       std::vector<float> runs_err;
 
       for (auto const& iov : sorted_iovs) {
-        std::unordered_map<int, std::vector<float> > noises;  //map with noises per layer
+        std::unordered_map<int, std::vector<float>> noises;  //map with noises per layer
 
         std::shared_ptr<SiStripNoises> payload = fetchPayload(std::get<1>(iov));
         unsigned int run = std::get<0>(iov);
@@ -1545,7 +1733,7 @@ namespace {
           }  //get
         }    //run on iov
       }
-      TCanvas canvas("Partion summary", "partition summary", 2000, 1000);
+      TCanvas canvas("Partition summary", "partition summary", 2000, 1000);
       canvas.cd();
       canvas.SetBottomMargin(0.11);
       canvas.SetLeftMargin(0.13);
@@ -1563,8 +1751,8 @@ namespace {
       int el = 0;
 
       for (auto& entry : noises_avg) {
-        graph[el] = std::unique_ptr<TGraphErrors>(
-            new TGraphErrors(runs.size(), &runs[0], &(entry.second[0]), &runs_err[0], &(noises_err[entry.first][0])));
+        graph[el] = std::make_unique<TGraphErrors>(
+            runs.size(), &runs[0], &(entry.second[0]), &runs_err[0], &(noises_err[entry.first][0]));
         char title[100];
         char name[100];
         snprintf(name, sizeof(name), "gr%d", entry.first);
@@ -1644,7 +1832,9 @@ namespace {
 
 PAYLOAD_INSPECTOR_MODULE(SiStripNoises) {
   PAYLOAD_INSPECTOR_CLASS(SiStripNoisesTest);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoisePerDetId);
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseValue);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseValuePerDetId);
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseValuePerStrip);
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseValuePerAPV);
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseValuePerModule);
@@ -1672,30 +1862,14 @@ PAYLOAD_INSPECTOR_MODULE(SiStripNoises) {
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseComparatorMinByRegionTwoTags);
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseComparatorMaxByRegionTwoTags);
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseComparatorRMSByRegionTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOV1sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOV1sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOV1sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOV1sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOV2sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOV2sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOV2sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOV2sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOV3sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOV3sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOV3sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOV3sigmaTrackerMapSingleTag);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOV1sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOV1sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOV1sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOV1sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOV2sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOV2sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOV2sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOV2sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOV3sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOV3sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOV3sigmaTrackerMapTwoTags);
-  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOV3sigmaTrackerMapTwoTags);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOVTrackerMapSingleTag);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOVTrackerMapSingleTag);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOVTrackerMapSingleTag);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOVTrackerMapSingleTag);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMin_RatioWithPreviousIOVTrackerMapTwoTags);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMax_RatioWithPreviousIOVTrackerMapTwoTags);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseMean_RatioWithPreviousIOVTrackerMapTwoTags);
+  PAYLOAD_INSPECTOR_CLASS(SiStripNoiseRms_RatioWithPreviousIOVTrackerMapTwoTags);
   PAYLOAD_INSPECTOR_CLASS(SiStripNoiseLinearity);
   PAYLOAD_INSPECTOR_CLASS(TIBNoiseHistory);
   PAYLOAD_INSPECTOR_CLASS(TOBNoiseHistory);

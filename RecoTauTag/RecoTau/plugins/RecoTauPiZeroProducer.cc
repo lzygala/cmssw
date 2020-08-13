@@ -11,10 +11,11 @@
  *
  */
 
-#include <boost/ptr_container/ptr_vector.hpp>
-#include <boost/ptr_container/ptr_list.hpp>
 #include <algorithm>
+#include <boost/ptr_container/ptr_list.hpp>
+#include <boost/ptr_container/ptr_vector.hpp>
 #include <functional>
+#include <memory>
 
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -29,6 +30,7 @@
 #include "RecoTauTag/RecoTau/interface/RecoTauPiZeroPlugins.h"
 #include "RecoTauTag/RecoTau/interface/RecoTauCleaningTools.h"
 #include "RecoTauTag/RecoTau/interface/RecoTauCommonUtilities.h"
+#include "RecoTauTag/RecoTau/interface/RecoTauQualityCuts.h"
 
 #include "DataFormats/JetReco/interface/PFJetCollection.h"
 #include "DataFormats/TauReco/interface/JetPiZeroAssociation.h"
@@ -60,11 +62,11 @@ private:
 
   builderList builders_;
   rankerList rankers_;
-  std::auto_ptr<PiZeroPredicate> predicate_;
+  std::unique_ptr<PiZeroPredicate> predicate_;
   double piZeroMass_;
 
   // Output selector
-  std::auto_ptr<StringCutObjectSelector<reco::RecoTauPiZero>> outputSelector_;
+  std::unique_ptr<StringCutObjectSelector<reco::RecoTauPiZero>> outputSelector_;
 
   //consumes interface
   edm::EDGetTokenT<reco::JetView> cand_token;
@@ -103,12 +105,12 @@ RecoTauPiZeroProducer::RecoTauPiZeroProducer(const edm::ParameterSet& pset) {
   }
 
   // Build the sorting predicate
-  predicate_ = std::auto_ptr<PiZeroPredicate>(new PiZeroPredicate(rankers_));
+  predicate_ = std::make_unique<PiZeroPredicate>(rankers_);
 
   // now all producers apply a final output selection
   std::string selection = pset.getParameter<std::string>("outputSelection");
   if (!selection.empty()) {
-    outputSelector_.reset(new StringCutObjectSelector<reco::RecoTauPiZero>(selection));
+    outputSelector_ = std::make_unique<StringCutObjectSelector<reco::RecoTauPiZero>>(selection);
   }
 
   verbosity_ = pset.getParameter<int>("verbosity");
@@ -162,7 +164,7 @@ void RecoTauPiZeroProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
     std::set<reco::CandidatePtr> photonsInCleanCollection;
     while (!dirtyPiZeros.empty()) {
       // Pull our candidate pi zero from the front of the list
-      std::auto_ptr<reco::RecoTauPiZero> toAdd(dirtyPiZeros.pop_front().release());
+      std::unique_ptr<reco::RecoTauPiZero> toAdd(dirtyPiZeros.pop_front().release());
       // If this doesn't pass our basic selection, discard it.
       if (!(*outputSelector_)(*toAdd)) {
         continue;
@@ -197,7 +199,7 @@ void RecoTauPiZeroProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
         // Put this pi zero back into the collection of sorted dirty pizeros
         PiZeroList::iterator insertionPoint =
             std::lower_bound(dirtyPiZeros.begin(), dirtyPiZeros.end(), *toAdd, *predicate_);
-        dirtyPiZeros.insert(insertionPoint, toAdd);
+        dirtyPiZeros.insert(insertionPoint, std::move(toAdd));
       }
     }
     // Apply the mass hypothesis if desired
@@ -246,48 +248,8 @@ void RecoTauPiZeroProducer::fillDescriptions(edm::ConfigurationDescriptions& des
   std::vector<edm::ParameterSet> vpsd_ranking;
   vpsd_ranking.push_back(pset_ranking);
 
-  edm::ParameterSetDescription desc_signalQualityCuts;
-  desc_signalQualityCuts.add<double>("maxDeltaZ", 0.4);
-  desc_signalQualityCuts.add<double>("minTrackPt", 0.5);
-  desc_signalQualityCuts.add<double>("minTrackVertexWeight", -1.0);
-  desc_signalQualityCuts.add<double>("maxTrackChi2", 100.0);
-  desc_signalQualityCuts.add<unsigned int>("minTrackPixelHits", 0);
-  desc_signalQualityCuts.add<double>("minGammaEt", 1.0);
-  desc_signalQualityCuts.add<unsigned int>("minTrackHits", 3);
-  desc_signalQualityCuts.addOptional<double>("minNeutralHadronEt");
-  desc_signalQualityCuts.add<double>("maxTransverseImpactParameter", 0.1);
-  desc_signalQualityCuts.addOptional<bool>("useTracksInsteadOfPFHadrons");
-
-  edm::ParameterSetDescription desc_vxAssocQualityCuts;
-  desc_vxAssocQualityCuts.add<double>("minTrackPt", 0.5);
-  desc_vxAssocQualityCuts.add<double>("minTrackVertexWeight", -1.0);
-  desc_vxAssocQualityCuts.add<double>("maxTrackChi2", 100.0);
-  desc_vxAssocQualityCuts.add<unsigned int>("minTrackPixelHits", 0);
-  desc_vxAssocQualityCuts.add<double>("minGammaEt", 1.0);
-  desc_vxAssocQualityCuts.add<unsigned int>("minTrackHits", 3);
-  desc_vxAssocQualityCuts.add<double>("maxTransverseImpactParameter", 0.1);
-  desc_vxAssocQualityCuts.addOptional<bool>("useTracksInsteadOfPFHadrons");
-
-  edm::ParameterSetDescription desc_isolationQualityCuts;
-  desc_isolationQualityCuts.add<double>("maxDeltaZ", 0.2);
-  desc_isolationQualityCuts.add<double>("minTrackPt", 1.0);
-  desc_isolationQualityCuts.add<double>("minTrackVertexWeight", -1.0);
-  desc_isolationQualityCuts.add<double>("maxTrackChi2", 100.0);
-  desc_isolationQualityCuts.add<unsigned int>("minTrackPixelHits", 0);
-  desc_isolationQualityCuts.add<double>("minGammaEt", 1.5);
-  desc_isolationQualityCuts.add<unsigned int>("minTrackHits", 8);
-  desc_isolationQualityCuts.add<double>("maxTransverseImpactParameter", 0.03);
-  desc_isolationQualityCuts.addOptional<bool>("useTracksInsteadOfPFHadrons");
-
   edm::ParameterSetDescription desc_qualityCuts;
-  desc_qualityCuts.add<edm::ParameterSetDescription>("signalQualityCuts", desc_signalQualityCuts);
-  desc_qualityCuts.add<edm::ParameterSetDescription>("vxAssocQualityCuts", desc_vxAssocQualityCuts);
-  desc_qualityCuts.add<edm::ParameterSetDescription>("isolationQualityCuts", desc_isolationQualityCuts);
-  desc_qualityCuts.add<std::string>("leadingTrkOrPFCandOption", "leadPFCand");
-  desc_qualityCuts.add<std::string>("pvFindingAlgo", "closestInDeltaZ");
-  desc_qualityCuts.add<edm::InputTag>("primaryVertexSrc", edm::InputTag("offlinePrimaryVertices"));
-  desc_qualityCuts.add<bool>("vertexTrackFiltering", false);
-  desc_qualityCuts.add<bool>("recoverLeadingTrk", false);
+  reco::tau::RecoTauQualityCuts::fillDescriptions(desc_qualityCuts);
 
   edm::ParameterSet pset_builders;
   pset_builders.addParameter<std::string>("name", "");

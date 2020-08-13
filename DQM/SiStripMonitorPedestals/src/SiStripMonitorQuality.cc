@@ -20,7 +20,6 @@
 #include "FWCore/ServiceRegistry/interface/Service.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "CalibFormats/SiStripObjects/interface/SiStripDetCabling.h"
 #include "CalibFormats/SiStripObjects/interface/SiStripQuality.h"
@@ -115,7 +114,6 @@ void SiStripMonitorQuality::bookHistograms(DQMStore::IBooker &ibooker,
     hid = hidmanager.createHistoId("StripQualityFromCondDB", "det", detid);
 
     det_me = ibooker.book1D(hid, hid, nStrip, 0.5, nStrip + 0.5);
-    ibooker.tag(det_me, detid);
     det_me->setAxisTitle("Strip Number", 1);
     det_me->setAxisTitle("Quality Flag from CondDB ", 2);
     QualityMEs.insert(std::make_pair(detid, det_me));
@@ -181,11 +179,10 @@ void SiStripMonitorQuality::analyze(edm::Event const &iEvent, edm::EventSetup co
 //
 // -- End Run
 //
-void SiStripMonitorQuality::endRun(edm::Run const &run, edm::EventSetup const &eSetup) {
+void SiStripMonitorQuality::dqmEndRun(edm::Run const &run, edm::EventSetup const &eSetup) {
   bool outputMEsInRootFile = conf_.getParameter<bool>("OutputMEsInRootFile");
   std::string outputFileName = conf_.getParameter<std::string>("OutputFileName");
   if (outputMEsInRootFile) {
-    // dqmStore_->showDirStructure();
     dqmStore_->save(outputFileName);
   }
 }
@@ -199,7 +196,8 @@ void SiStripMonitorQuality::endJob(void) {
 //
 // -- End Job
 //
-MonitorElement *SiStripMonitorQuality::getQualityME(uint32_t idet, const TrackerTopology *tTopo) {
+SiStripMonitorQuality::MonitorElement *SiStripMonitorQuality::getQualityME(uint32_t idet,
+                                                                           const TrackerTopology *tTopo) {
   std::map<uint32_t, MonitorElement *>::iterator pos = QualityMEs.find(idet);
   MonitorElement *det_me = nullptr;
   if (pos != QualityMEs.end()) {

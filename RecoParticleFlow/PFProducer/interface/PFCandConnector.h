@@ -2,12 +2,11 @@
 #define PFProducer_PFCandConnector_H_
 
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
-
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidateFwd.h"
-
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
-
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+
 // \author : M. Gouzevitch
 // \date : May 2010
 
@@ -15,7 +14,7 @@
 
 class PFCandConnector {
 public:
-  PFCandConnector(bool debug = false) : debug_(debug) {
+  PFCandConnector() {
     bCorrect_ = false;
     bCalibPrimary_ = false;
 
@@ -79,6 +78,8 @@ public:
                      double ptErrorSecondary,
                      const std::vector<double>& nuclCalibFactors);
 
+  static void fillPSetDescription(edm::ParameterSetDescription& iDesc);
+
   reco::PFCandidateCollection connect(reco::PFCandidateCollection& pfCand) const;
 
 private:
@@ -96,7 +97,6 @@ private:
   double rescaleFactor(const double pt, const double cFrac) const;
 
   /// Parameters
-  const bool debug_;
   bool bCorrect_;
 
   /// Calibration parameters for the reconstructed nuclear interactions

@@ -41,10 +41,11 @@
 //DQM
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 class DQMDaqInfo : public edm::EDAnalyzer {
 public:
+  typedef dqm::legacy::DQMStore DQMStore;
+  typedef dqm::legacy::MonitorElement MonitorElement;
   explicit DQMDaqInfo(const edm::ParameterSet&);
   ~DQMDaqInfo() override;
 
@@ -52,7 +53,6 @@ private:
   void beginJob() override;
   void beginLuminosityBlock(const edm::LuminosityBlock&, const edm::EventSetup&) override;
   void analyze(const edm::Event&, const edm::EventSetup&) override;
-  void endJob() override;
 
   DQMStore* dbe_;
 

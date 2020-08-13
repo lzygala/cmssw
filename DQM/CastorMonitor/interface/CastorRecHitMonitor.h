@@ -2,7 +2,6 @@
 #define DQM_CASTORMONITOR_CASTORRECHITMONITOR_H
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 //#include "DataFormats/HcalRecHit/interface/CastorRecHit.h"
 #include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
 
@@ -20,10 +19,12 @@
 
 class CastorRecHitMonitor {
 public:
+  typedef dqm::legacy::DQMStore DQMStore;
+  typedef dqm::legacy::MonitorElement MonitorElement;
   CastorRecHitMonitor(const edm::ParameterSet &ps);
   ~CastorRecHitMonitor();
 
-  void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &);
+  void bookHistograms(DQMStore::IBooker &, edm::Run const &);
   void processEvent(const CastorRecHitCollection &castorHits);
   void processEventTowers(const reco::CastorTowerCollection &castorTowers);
   void processEventJets(const reco::BasicJetCollection &Jets);

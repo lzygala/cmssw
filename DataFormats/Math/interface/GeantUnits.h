@@ -6,7 +6,7 @@
 // The CMS convention is that centimeter = 1 and GeV = 1, so care must be taken with code that converts between
 // the two conventions.
 
-#include "DataFormats/Math/interface/deltaPhi.h"
+#include "DataFormats/Math/interface/angle_units.h"
 
 namespace geant_units {
 
@@ -68,6 +68,12 @@ namespace geant_units {
     inline constexpr NumType convertCmToMm(NumType centimeters)  // Centimeters -> Milliimeters
     {
       return (centimeters * 10.);
+    }
+
+    template <class NumType>
+    inline constexpr NumType convertCm2ToMm2(NumType centimeters)  // Centimeters^2 -> Milliimeters^2
+    {
+      return (centimeters * 100.);
     }
 
     template <class NumType>

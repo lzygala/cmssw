@@ -29,7 +29,6 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -41,13 +40,13 @@
 #include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerEvmReadoutRecord.h"
 #include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutRecord.h"
 
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 
 //
 // class declaration
 //
 
-class L1TGT : public one::DQMEDAnalyzer<edm::one::WatchLuminosityBlocks> {
+class L1TGT : public DQMOneEDAnalyzer<edm::one::WatchLuminosityBlocks> {
 public:
   // constructor
   L1TGT(const edm::ParameterSet& ps);
@@ -172,8 +171,8 @@ private:
   /// histogram folder for L1 GT plots
   std::string m_histFolder;
 
-  boost::uint64_t preGps_;
-  boost::uint64_t preOrb_;
+  uint64_t preGps_;
+  uint64_t preOrb_;
 
   std::string algoBitToName[128];
   std::string techBitToName[64];

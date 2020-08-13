@@ -42,7 +42,7 @@ def _modifyPixelDigitizerForRun3( digitizer ):
 
     digitizer.ThresholdInElectrons_FPix = cms.double(1600.0)
     digitizer.ThresholdInElectrons_BPix = cms.double(1600.0)
-    digitizer.ThresholdInElectrons_BPix_L1 = cms.double(1300.0)
+    digitizer.ThresholdInElectrons_BPix_L1 = cms.double(2000.0)
     digitizer.ThresholdInElectrons_BPix_L2 = cms.double(1600.0)
 
 SiPixelSimBlock = cms.PSet(
@@ -104,6 +104,10 @@ SiPixelSimBlock = cms.PSet(
     NumPixelEndcap = cms.int32(2),
 ###    DeadModules = cms.VPSet()
 )
+
+# activate charge reweighing for 2016 pixel detector (UL 2016)
+from Configuration.Eras.Modifier_pixel_2016_cff import pixel_2016
+pixel_2016.toModify(SiPixelSimBlock,UseReweighting=True)
 
 #
 # Apply the changes for the different Run 2 running scenarios

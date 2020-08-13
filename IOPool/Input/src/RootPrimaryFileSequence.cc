@@ -12,6 +12,7 @@
 #include "FWCore/Catalog/interface/InputFileCatalog.h"
 #include "FWCore/Catalog/interface/SiteLocalConfig.h"
 #include "FWCore/Framework/interface/FileBlock.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
@@ -32,7 +33,8 @@ namespace edm {
         treeCacheSize_(noEventSort_ ? pset.getUntrackedParameter<unsigned int>("cacheSize") : 0U),
         duplicateChecker_(new DuplicateChecker(pset)),
         usingGoToEvent_(false),
-        enablePrefetching_(false) {
+        enablePrefetching_(false),
+        enforceGUIDInFileName_(pset.getUntrackedParameter<bool>("enforceGUIDInFileName")) {
     // The SiteLocalConfig controls the TTreeCache size and the prefetching settings.
     Service<SiteLocalConfig> pSLC;
     if (pSLC.isAvailable()) {
@@ -49,7 +51,7 @@ namespace edm {
 
     // Prestage the files
     for (setAtFirstFile(); !noMoreFiles(); setAtNextFile()) {
-      StorageFactory::get()->stagein(fileName());
+      StorageFactory::get()->stagein(fileNames()[0]);
     }
     // Open the first file.
     for (setAtFirstFile(); !noMoreFiles(); setAtNextFile()) {
@@ -109,7 +111,7 @@ namespace edm {
 
   RootPrimaryFileSequence::RootFileSharedPtr RootPrimaryFileSequence::makeRootFile(std::shared_ptr<InputFile> filePtr) {
     size_t currentIndexIntoFile = sequenceNumberOfFile();
-    return std::make_shared<RootFile>(fileName(),
+    return std::make_shared<RootFile>(fileNames()[0],
                                       input_.processConfiguration(),
                                       logicalFileName(),
                                       filePtr,
@@ -137,7 +139,8 @@ namespace edm {
                                       input_.bypassVersionCheck(),
                                       input_.labelRawDataLikeMC(),
                                       usingGoToEvent_,
-                                      enablePrefetching_);
+                                      enablePrefetching_,
+                                      enforceGUIDInFileName_);
   }
 
   bool RootPrimaryFileSequence::nextFile() {
@@ -149,13 +152,15 @@ namespace edm {
 
     initFile(input_.skipBadFiles());
 
-    if (rootFile()) {
-      // make sure the new product registry is compatible with the main one
-      std::string mergeInfo =
-          input_.productRegistryUpdate().merge(*rootFile()->productRegistry(), fileName(), branchesMustMatch_);
-      if (!mergeInfo.empty()) {
-        throw Exception(errors::MismatchedInputFiles, "RootPrimaryFileSequence::nextFile()") << mergeInfo;
-      }
+    if (not rootFile()) {
+      return false;
+    }
+
+    // make sure the new product registry is compatible with the main one
+    std::string mergeInfo =
+        input_.productRegistryUpdate().merge(*rootFile()->productRegistry(), fileNames()[0], branchesMustMatch_);
+    if (!mergeInfo.empty()) {
+      throw Exception(errors::MismatchedInputFiles, "RootPrimaryFileSequence::nextFile()") << mergeInfo;
     }
     return true;
   }
@@ -171,7 +176,7 @@ namespace edm {
     if (rootFile()) {
       // make sure the new product registry is compatible to the main one
       std::string mergeInfo =
-          input_.productRegistryUpdate().merge(*rootFile()->productRegistry(), fileName(), branchesMustMatch_);
+          input_.productRegistryUpdate().merge(*rootFile()->productRegistry(), fileNames()[0], branchesMustMatch_);
       if (!mergeInfo.empty()) {
         throw Exception(errors::MismatchedInputFiles, "RootPrimaryFileSequence::previousEvent()") << mergeInfo;
       }
@@ -322,6 +327,10 @@ namespace edm {
         ->setComment(
             "'strict':     Branches in each input file must match those in the first file.\n"
             "'permissive': Branches in each input file may be any subset of those in the first file.");
+    desc.addUntracked<bool>("enforceGUIDInFileName", false)
+        ->setComment(
+            "True:  file name part is required to be equal to the GUID of the file\n"
+            "False: file name can be anything");
 
     EventSkipperByID::fillDescription(desc);
     DuplicateChecker::fillDescription(desc);

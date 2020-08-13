@@ -16,9 +16,9 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 
-#include "CondFormats/CTPPSReadoutObjects/interface/CTPPSRPAlignmentCorrectionsDataSequence.h"
+#include "CondFormats/PPSObjects/interface/CTPPSRPAlignmentCorrectionsDataSequence.h"
 
-#include "CondFormats/CTPPSReadoutObjects/interface/CTPPSRPAlignmentCorrectionsMethods.h"
+#include "CondFormats/PPSObjects/interface/CTPPSRPAlignmentCorrectionsMethods.h"
 
 #include "CondFormats/AlignmentRecord/interface/CTPPSRPAlignmentCorrectionsDataRcd.h"  // this used to be RPMeasuredAlignmentRecord.h
 #include "CondFormats/AlignmentRecord/interface/RPRealAlignmentRecord.h"
@@ -189,6 +189,7 @@ void CTPPSRPAlignmentCorrectionsDataESSourceXML::PrepareSequence(const string &l
         << "CTPPSRPAlignmentCorrectionsDataESSourceXML::PrepareSequence(" << label << ")";
 
   vector<CTPPSRPAlignmentCorrectionsDataSequence> sequences;
+  sequences.reserve(files.size());
   for (const auto &file : files)
     sequences.emplace_back(CTPPSRPAlignmentCorrectionsMethods::loadFromXML(file));
 

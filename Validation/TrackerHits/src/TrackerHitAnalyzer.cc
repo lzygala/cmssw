@@ -11,7 +11,6 @@
 #include "DataFormats/DetId/interface/DetId.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 // tracker info
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
@@ -81,19 +80,6 @@ void TrackerHitAnalyzer::bookHistograms(DQMStore::IBooker &ibooker, const edm::R
   Char_t hname4[50], htitle4[80];
   Char_t hname5[50], htitle5[80];
   Char_t hname6[50], htitle6[80];
-
-  if (fDBE) {
-    if (verbose_) {
-      fDBE->setVerbose(1);
-    } else {
-      fDBE->setVerbose(0);
-    }
-  }
-
-  if (fDBE) {
-    if (verbose_)
-      fDBE->showDirStructure();
-  }
 
   if (fDBE != nullptr) {
     //   fDBE->setCurrentFolder("TrackerHitsV/TrackerHitTask");
@@ -344,19 +330,6 @@ void TrackerHitAnalyzer::bookHistograms(DQMStore::IBooker &ibooker, const edm::R
 
 TrackerHitAnalyzer::~TrackerHitAnalyzer() {
   // don't try to delete any pointers - they're handled by DQM machinery
-}
-
-void TrackerHitAnalyzer::endJob() {
-  // According to the previous code some profile plots were created here
-  // However, these profile plots are not in the final root file
-  // For now we comment out these plots (since they are not created in any case)
-  // Then, if needed we will consider moving the booking of the profileplots to
-  // the bookHistograms function and here we will do the profile
-
-  // Save root file only in standalone mode
-  if (runStandalone && !fOutputFile.empty() && fDBE) {
-    fDBE->save(fOutputFile);
-  }
 }
 
 void TrackerHitAnalyzer::analyze(const edm::Event &e, const edm::EventSetup &c) {

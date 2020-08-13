@@ -25,6 +25,7 @@
 #include "RecoTauTag/RecoTau/interface/PFRecoTauChargedHadronPlugins.h"
 #include "RecoTauTag/RecoTau/interface/RecoTauCleaningTools.h"
 #include "RecoTauTag/RecoTau/interface/RecoTauCommonUtilities.h"
+#include "RecoTauTag/RecoTau/interface/RecoTauQualityCuts.h"
 #include "RecoTauTag/RecoTau/interface/pfRecoTauChargedHadronAuxFunctions.h"
 
 #include "DataFormats/JetReco/interface/PFJetCollection.h"
@@ -43,13 +44,15 @@
 #include <boost/ptr_container/ptr_vector.hpp>
 #include <boost/ptr_container/ptr_list.hpp>
 
-#include <string>
-#include <vector>
+#include <memory>
+
+#include <algorithm>
+#include <cmath>
+#include <functional>
 #include <list>
 #include <set>
-#include <algorithm>
-#include <functional>
-#include <cmath>
+#include <string>
+#include <vector>
 
 class PFRecoTauChargedHadronProducer : public edm::stream::EDProducer<> {
 public:
@@ -84,10 +87,10 @@ private:
   builderList builders_;
   rankerList rankers_;
 
-  std::auto_ptr<ChargedHadronPredicate> predicate_;
+  std::unique_ptr<ChargedHadronPredicate> predicate_;
 
   // output selector
-  std::auto_ptr<StringCutObjectSelector<reco::PFRecoTauChargedHadron>> outputSelector_;
+  std::unique_ptr<StringCutObjectSelector<reco::PFRecoTauChargedHadron>> outputSelector_;
 
   // flag to enable/disable debug print-out
   int verbosity_;
@@ -121,12 +124,12 @@ PFRecoTauChargedHadronProducer::PFRecoTauChargedHadronProducer(const edm::Parame
   }
 
   // build the sorting predicate
-  predicate_ = std::auto_ptr<ChargedHadronPredicate>(new ChargedHadronPredicate(rankers_));
+  predicate_ = std::make_unique<ChargedHadronPredicate>(rankers_);
 
   // check if we want to apply a final output selection
   std::string selection = cfg.getParameter<std::string>("outputSelection");
   if (!selection.empty()) {
-    outputSelector_.reset(new StringCutObjectSelector<reco::PFRecoTauChargedHadron>(selection));
+    outputSelector_ = std::make_unique<StringCutObjectSelector<reco::PFRecoTauChargedHadron>>(selection);
   }
 
   produces<reco::PFJetChargedHadronAssociation>();
@@ -202,7 +205,7 @@ void PFRecoTauChargedHadronProducer::produce(edm::Event& evt, const edm::EventSe
 
     while (!uncleanedChargedHadrons.empty()) {
       // get next best ChargedHadron candidate
-      std::auto_ptr<reco::PFRecoTauChargedHadron> nextChargedHadron(uncleanedChargedHadrons.pop_front().release());
+      std::unique_ptr<reco::PFRecoTauChargedHadron> nextChargedHadron(uncleanedChargedHadrons.pop_front().release());
       if (verbosity_) {
         edm::LogPrint("PFRecoTauChHProducer") << "processing nextChargedHadron:";
         edm::LogPrint("PFRecoTauChHProducer") << (*nextChargedHadron);
@@ -303,7 +306,7 @@ void PFRecoTauChargedHadronProducer::produce(edm::Event& evt, const edm::EventSe
           edm::LogPrint("PFRecoTauChHProducer") << "--> removing non-unique neutral PFCandidates and reinserting "
                                                    "nextChargedHadron in uncleaned collection.";
         }
-        uncleanedChargedHadrons.insert(insertionPoint, nextChargedHadron);
+        uncleanedChargedHadrons.insert(insertionPoint, std::move(nextChargedHadron));
       }
     }
 
@@ -373,52 +376,9 @@ void PFRecoTauChargedHadronProducer::fillDescriptions(edm::ConfigurationDescript
     desc_builders.addOptional<double>("dRmergePhoton");
     desc_builders.addOptional<edm::InputTag>("srcTracks");
 
-    {
-      edm::ParameterSetDescription pset_signalQualityCuts;
-      pset_signalQualityCuts.add<double>("maxDeltaZ", 0.4);
-      pset_signalQualityCuts.add<double>("minTrackPt", 0.5);
-      pset_signalQualityCuts.add<double>("minTrackVertexWeight", -1.0);
-      pset_signalQualityCuts.add<double>("maxTrackChi2", 100.0);
-      pset_signalQualityCuts.add<unsigned int>("minTrackPixelHits", 0);
-      pset_signalQualityCuts.add<double>("minGammaEt", 1.0);
-      pset_signalQualityCuts.add<unsigned int>("minTrackHits", 3);
-      pset_signalQualityCuts.add<double>("minNeutralHadronEt", 30.0);
-      pset_signalQualityCuts.add<double>("maxTransverseImpactParameter", 0.1);
-      pset_signalQualityCuts.addOptional<bool>("useTracksInsteadOfPFHadrons");
-
-      edm::ParameterSetDescription pset_vxAssocQualityCuts;
-      pset_vxAssocQualityCuts.add<double>("minTrackPt", 0.5);
-      pset_vxAssocQualityCuts.add<double>("minTrackVertexWeight", -1.0);
-      pset_vxAssocQualityCuts.add<double>("maxTrackChi2", 100.0);
-      pset_vxAssocQualityCuts.add<unsigned int>("minTrackPixelHits", 0);
-      pset_vxAssocQualityCuts.add<double>("minGammaEt", 1.0);
-      pset_vxAssocQualityCuts.add<unsigned int>("minTrackHits", 3);
-      pset_vxAssocQualityCuts.add<double>("maxTransverseImpactParameter", 0.1);
-      pset_vxAssocQualityCuts.addOptional<bool>("useTracksInsteadOfPFHadrons");
-
-      edm::ParameterSetDescription pset_isolationQualityCuts;
-      pset_isolationQualityCuts.add<double>("maxDeltaZ", 0.2);
-      pset_isolationQualityCuts.add<double>("minTrackPt", 1.0);
-      pset_isolationQualityCuts.add<double>("minTrackVertexWeight", -1.0);
-      pset_isolationQualityCuts.add<double>("maxTrackChi2", 100.0);
-      pset_isolationQualityCuts.add<unsigned int>("minTrackPixelHits", 0);
-      pset_isolationQualityCuts.add<double>("minGammaEt", 1.5);
-      pset_isolationQualityCuts.add<unsigned int>("minTrackHits", 8);
-      pset_isolationQualityCuts.add<double>("maxTransverseImpactParameter", 0.03);
-      pset_isolationQualityCuts.addOptional<bool>("useTracksInsteadOfPFHadrons");
-
-      edm::ParameterSetDescription pset_qualityCuts;
-      pset_qualityCuts.add<edm::ParameterSetDescription>("signalQualityCuts", pset_signalQualityCuts);
-      pset_qualityCuts.add<edm::ParameterSetDescription>("vxAssocQualityCuts", pset_vxAssocQualityCuts);
-      pset_qualityCuts.add<edm::ParameterSetDescription>("isolationQualityCuts", pset_isolationQualityCuts);
-      pset_qualityCuts.add<std::string>("leadingTrkOrPFCandOption", "leadPFCand");
-      pset_qualityCuts.add<std::string>("pvFindingAlgo", "closestInDeltaZ");
-      pset_qualityCuts.add<edm::InputTag>("primaryVertexSrc", edm::InputTag("offlinePrimaryVertices"));
-      pset_qualityCuts.add<bool>("vertexTrackFiltering", false);
-      pset_qualityCuts.add<bool>("recoverLeadingTrk", false);
-
-      desc_builders.add<edm::ParameterSetDescription>("qualityCuts", pset_qualityCuts);
-    }
+    edm::ParameterSetDescription desc_qualityCuts;
+    reco::tau::RecoTauQualityCuts::fillDescriptions(desc_qualityCuts);
+    desc_builders.add<edm::ParameterSetDescription>("qualityCuts", desc_qualityCuts);
 
     desc_builders.add<double>("minMergeGammaEt");
     desc_builders.add<int>("verbosity", 0);

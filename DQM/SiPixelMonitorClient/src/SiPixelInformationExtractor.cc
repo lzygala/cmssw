@@ -11,7 +11,6 @@
 #include "DQM/SiPixelMonitorClient/interface/SiPixelUtility.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
@@ -29,7 +28,7 @@
 
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
 
@@ -316,7 +315,7 @@ int SiPixelInformationExtractor::getDetId(MonitorElement *mE) {
   int detId = 0;
 
   if (mEName.find("_3") != string::npos) {
-    string detIdString = mEName.substr((mEName.find_last_of("_")) + 1, 9);
+    string detIdString = mEName.substr((mEName.find_last_of('_')) + 1, 9);
     std::istringstream isst;
     isst.str(detIdString);
     isst >> detId;
@@ -366,7 +365,7 @@ void SiPixelInformationExtractor::findNoisyPixels(DQMStore::IBooker &iBooker,
     myfile_ << "Noise summary, ran over " << nevents_ << " events, threshold was set to " << noiseRate_ << std::endl;
   }
   string currDir = iBooker.pwd();
-  string dname = currDir.substr(currDir.find_last_of("/") + 1);
+  string dname = currDir.substr(currDir.find_last_of('/') + 1);
 
   if (dname.find("Module_") != string::npos) {
     vector<string> meVec = iGetter.getMEs();

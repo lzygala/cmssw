@@ -37,7 +37,6 @@
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCAnodeLCTProcessor.h"
 #include "L1Trigger/CSCTriggerPrimitives/interface/CSCCathodeLCTProcessor.h"
 #include "DataFormats/CSCDigi/interface/CSCCorrelatedLCTDigi.h"
-#include "L1Trigger/CSCTriggerPrimitives/interface/CSCBaseboard.h"
 
 class CSCMotherboard : public CSCBaseboard {
 public:
@@ -90,8 +89,9 @@ protected:
   /** Container for second correlated LCT. */
   CSCCorrelatedLCTDigi secondLCT[CSCConstants::MAX_LCT_TBINS];
 
-  // helper function to return ALCT with correct central BX
+  // helper function to return ALCT/CLCT with correct central BX
   CSCALCTDigi getBXShiftedALCT(const CSCALCTDigi&) const;
+  CSCCLCTDigi getBXShiftedCLCT(const CSCCLCTDigi&) const;
 
   /** Configuration parameters. */
   unsigned int mpc_block_me1a;
@@ -113,6 +113,13 @@ protected:
   /** if true: use regular CLCT-to-ALCT matching in TMB
       if false: do ALCT-to-CLCT matching */
   bool clct_to_alct;
+
+  // encode special bits for high-multiplicity triggers
+  unsigned int highMultiplicityBits_;
+  bool useHighMultiplicityBits_;
+
+  // Use the new patterns according to the comparator code format
+  bool use_run3_patterns_;
 
   /** Default values of configuration parameters. */
   static const unsigned int def_mpc_block_me1a;
@@ -160,5 +167,11 @@ protected:
 
   /** Dump TMB/MPC configuration parameters. */
   void dumpConfigParams() const;
+
+  // Check if the LCT is valid
+  void checkValid(const CSCCorrelatedLCTDigi& lct) const;
+
+  /* encode high multiplicity bits for Run-3 exotic triggers */
+  void encodeHighMultiplicityBits(unsigned alctBits);
 };
 #endif

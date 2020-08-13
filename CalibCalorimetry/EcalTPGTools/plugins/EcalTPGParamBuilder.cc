@@ -375,7 +375,7 @@ bool EcalTPGParamBuilder::checkIfOK(EcalPedestals::Item item) {
 int EcalTPGParamBuilder::getEtaSlice(int tccId, int towerInTCC) {
   int etaSlice = (towerInTCC - 1) / 4 + 1;
   // barrel
-  if (tccId > 36 || tccId < 73)
+  if (tccId > 36 && tccId < 73)
     return etaSlice;
   //endcap
   else {
@@ -2609,7 +2609,7 @@ void EcalTPGParamBuilder::getCoeff(coeffStruc& coeff,
         edm::LogError("TopInfo") << "ERROR:LaserAlphe parameter note found!!"
                                  << "\n";
     }
-    if (ECALdetid.subdetId() == 1) {  //ECAL ENDCAP
+    if (ECALdetid.subdetId() == 2) {  //ECAL ENDCAP
       EEDetId endcap_detid(rawId);
       EcalLaserAlphaMap::const_iterator italpha = laserAlphaMap.find(endcap_detid);
       if (italpha != laserAlphaMap.end())

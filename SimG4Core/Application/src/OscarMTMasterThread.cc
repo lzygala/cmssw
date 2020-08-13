@@ -1,15 +1,14 @@
+#include <memory>
+
 #include "SimG4Core/Application/interface/OscarMTMasterThread.h"
 
 #include "SimG4Core/Application/interface/RunManagerMT.h"
-#include "SimG4Core/Application/interface/CustomUIsession.h"
+#include "SimG4Core/Geometry/interface/CustomUIsession.h"
 
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/ESTransientHandle.h"
 #include "FWCore/Utilities/interface/EDMException.h"
-
-#include "MagneticField/Engine/interface/MagneticField.h"
-#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "DetectorDescription/Core/interface/DDCompactView.h"
@@ -21,11 +20,9 @@
 #include "G4PhysicalVolumeStore.hh"
 
 OscarMTMasterThread::OscarMTMasterThread(const edm::ParameterSet& iConfig)
-    : m_pUseMagneticField(iConfig.getParameter<bool>("UseMagneticField")),
-      m_pGeoFromDD4hep(iConfig.getParameter<bool>("g4GeometryDD4hepSource")),
+    : m_pGeoFromDD4hep(iConfig.getParameter<bool>("g4GeometryDD4hepSource")),
       m_pDD(nullptr),
       m_pDD4hep(nullptr),
-      m_pMF(nullptr),
       m_pTable(nullptr),
       m_masterThreadState(ThreadState::NotExist),
       m_masterCanProceed(false),
@@ -35,7 +32,7 @@ OscarMTMasterThread::OscarMTMasterThread(const edm::ParameterSet& iConfig)
   // Lock the mutex
   std::unique_lock<std::mutex> lk(m_threadMutex);
 
-  edm::LogInfo("SimG4CoreApplication") << "OscarMTMasterThread: creating master thread";
+  edm::LogVerbatim("SimG4CoreApplication") << "OscarMTMasterThread: creating master thread";
 
   // Create Genat4 master thread
   m_masterThread = std::thread([&]() {
@@ -51,13 +48,13 @@ OscarMTMasterThread::OscarMTMasterThread(const edm::ParameterSet& iConfig)
     edm::LogVerbatim("SimG4CoreApplication") << "OscarMTMasterThread: initializing RunManagerMT";
 
     //UIsession manager for message handling
-    uiSession.reset(new CustomUIsession());
+    uiSession = std::make_unique<CustomUIsession>();
 
     // Create the master run manager, and share it to the CMSSW thread
     runManagerMaster = std::make_shared<RunManagerMT>(iConfig);
     m_runManagerMaster = runManagerMaster;
 
-    LogDebug("SimG4CoreApplication") << "OscarMTMasterThread: initialization of RunManagerMT finished";
+    edm::LogVerbatim("SimG4CoreApplication") << "OscarMTMasterThread: initialization of RunManagerMT finished";
 
     /////////////
     // State loop
@@ -74,20 +71,20 @@ OscarMTMasterThread::OscarMTMasterThread(const edm::ParameterSet& iConfig)
       m_notifyMasterCv.wait(lk2, [&] { return m_masterCanProceed; });
 
       // Act according to the state
-      edm::LogInfo("OscarMTMasterThread")
+      edm::LogVerbatim("OscarMTMasterThread")
           << "Master thread: Woke up, state is " << static_cast<int>(m_masterThreadState);
       if (m_masterThreadState == ThreadState::BeginRun) {
         // Initialize Geant4
-        edm::LogInfo("OscarMTMasterThread") << "Master thread: Initializing Geant4";
-        runManagerMaster->initG4(m_pDD, m_pDD4hep, m_pMF, m_pTable);
+        edm::LogVerbatim("OscarMTMasterThread") << "Master thread: Initializing Geant4";
+        runManagerMaster->initG4(m_pDD, m_pDD4hep, m_pTable);
         isG4Alive = true;
       } else if (m_masterThreadState == ThreadState::EndRun) {
         // Stop Geant4
-        LogDebug("OscarMTMasterThread") << "Master thread: Stopping Geant4";
+        edm::LogVerbatim("OscarMTMasterThread") << "Master thread: Stopping Geant4";
         runManagerMaster->stopG4();
         isG4Alive = false;
       } else if (m_masterThreadState == ThreadState::Destruct) {
-        LogDebug("OscarMTMasterThread") << "Master thread: Breaking out of state loop";
+        edm::LogVerbatim("OscarMTMasterThread") << "Master thread: Breaking out of state loop";
         if (isG4Alive)
           throw edm::Exception(edm::errors::LogicError)
               << "Geant4 is still alive, master thread state must be set to EndRun before Destruct";
@@ -108,7 +105,7 @@ OscarMTMasterThread::OscarMTMasterThread(const edm::ParameterSet& iConfig)
     runManagerMaster.reset();
     G4PhysicalVolumeStore::Clean();
 
-    LogDebug("OscarMTMasterThread") << "Master thread: Reseted shared_ptr";
+    edm::LogVerbatim("OscarMTMasterThread") << "Master thread: Reseted shared_ptr";
     lk2.unlock();
     edm::LogVerbatim("SimG4CoreApplication") << "OscarMTMasterThread: Master thread is finished";
   });
@@ -195,15 +192,6 @@ void OscarMTMasterThread::readES(const edm::EventSetup& iSetup) const {
         << "The Geometry configuration is changed during the job execution\n"
         << "this is not allowed, the geometry must stay unchanged";
   }
-  if (m_pUseMagneticField) {
-    bool magChanged = idealMagRcdWatcher_.check(iSetup);
-    if (magChanged && (!m_firstRun)) {
-      throw edm::Exception(edm::errors::Configuration)
-          << "[SimG4Core OscarMTMasterThread]\n"
-          << "The MagneticField configuration is changed during the job execution\n"
-          << "this is not allowed, the MagneticField must stay unchanged";
-    }
-  }
   // Don't read from ES if not the first run, just as in
   if (!m_firstRun)
     return;
@@ -217,12 +205,6 @@ void OscarMTMasterThread::readES(const edm::EventSetup& iSetup) const {
     edm::ESTransientHandle<DDCompactView> pDD;
     iSetup.get<IdealGeometryRecord>().get(pDD);
     m_pDD = pDD.product();
-  }
-
-  if (m_pUseMagneticField) {
-    edm::ESHandle<MagneticField> pMF;
-    iSetup.get<IdealMagneticFieldRecord>().get(pMF);
-    m_pMF = pMF.product();
   }
 
   edm::ESHandle<HepPDT::ParticleDataTable> fTable;

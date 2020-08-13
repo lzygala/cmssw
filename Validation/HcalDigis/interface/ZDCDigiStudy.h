@@ -21,7 +21,7 @@
 #define SimG4CMS_ZDCDigiStudy_H
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -31,7 +31,6 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 
 #include "DataFormats/HcalDigi/interface/HcalDigiCollections.h"
@@ -43,7 +42,7 @@
 #include <string>
 #include <memory>
 
-class ZDCDigiStudy : public DQMEDAnalyzer {
+class ZDCDigiStudy : public DQMOneEDAnalyzer<> {
 public:
   ZDCDigiStudy(const edm::ParameterSet& ps);
   ~ZDCDigiStudy() override;
@@ -51,7 +50,7 @@ public:
   void bookHistograms(DQMStore::IBooker&, edm::Run const&, edm::EventSetup const&) override;
 
 protected:
-  void endRun(const edm::Run& run, const edm::EventSetup& c) override;
+  void dqmEndRun(const edm::Run& run, const edm::EventSetup& c) override;
 
   void analyze(const edm::Event& e, const edm::EventSetup& c) override;
   int FillHitValHist(int side, int section, int channel, double energy, double time);

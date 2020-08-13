@@ -26,7 +26,7 @@
 
 /*** DQM ***/
 #include "DQMServices/Core/interface/DQMEDHarvester.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
+#include "DQMServices/Core/interface/DQMStore.h"
 
 /*** Records for ESWatcher ***/
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
@@ -49,6 +49,8 @@ private:  //===================================================================
   void beginRun(const edm::Run&, const edm::EventSetup&) override;
 
   void bookHistograms(DQMStore::IBooker&);
+
+  void fillStatusHisto(MonitorElement* statusHisto);
 
   void fillExpertHistos();
 
@@ -81,6 +83,10 @@ private:  //===================================================================
   MonitorElement* h_yRot;
   MonitorElement* h_zPos;
   MonitorElement* h_zRot;
+
+  MonitorElement* statusResults;
+  MonitorElement* binariesAvalaible;
+  MonitorElement* exitCode;
 };
 
 // define this as a plug-in

@@ -1,13 +1,10 @@
 #include "RecoParticleFlow/PFProducer/interface/BlockElementImporterBase.h"
-#include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElementGsfTrack.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElementBrem.h"
 #include "DataFormats/ParticleFlowReco/interface/GsfPFRecTrack.h"
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
-#include "DataFormats/EgammaReco/interface/SuperClusterFwd.h"
 #include "DataFormats/EgammaReco/interface/SuperCluster.h"
-#include "DataFormats/EgammaReco/interface/ElectronSeedFwd.h"
 #include "DataFormats/EgammaReco/interface/ElectronSeed.h"
 #include "RecoParticleFlow/PFProducer/interface/PFBlockElementSCEqual.h"
 
@@ -48,7 +45,8 @@ void GSFTrackImporter::importToBlock(const edm::Event& e, BlockElementImporterBa
         reco::SuperClusterRef scref = seedref->caloCluster().castTo<reco::SuperClusterRef>();
         if (scref.isNonnull()) {
           // explicitly veto HGCal super clusters
-          if (scref->seed()->seed().det() == DetId::Forward)
+          if (scref->seed()->seed().det() == DetId::HGCalEE || scref->seed()->seed().det() == DetId::HGCalHSi ||
+              scref->seed()->seed().det() == DetId::HGCalHSc || scref->seed()->seed().det() == DetId::Forward)
             continue;
           PFBlockElementSCEqual myEqual(scref);
           auto sc_elem = std::find_if(elems.begin(), SCs_end, myEqual);

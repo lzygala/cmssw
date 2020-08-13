@@ -4,7 +4,7 @@
 #include "CalibTracker/SiPixelESProducers/interface/SiPixelGainCalibrationOfflineService.h"
 #include "CalibTracker/SiPixelESProducers/interface/SiPixelGainCalibrationOfflineSimService.h"
 
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
@@ -91,7 +91,7 @@ namespace cms {
       DetId detIdObject(detid);
       const PixelGeomDetUnit* _PixelGeomDetUnit =
           dynamic_cast<const PixelGeomDetUnit*>(tkgeom->idToDetUnit(DetId(detid)));
-      if (_PixelGeomDetUnit == 0) {
+      if (_PixelGeomDetUnit == nullptr) {
         edm::LogError("SiPixelCondObjOfflineDisplay") << "[SiPixelCondObjOfflineReader::beginJob] the detID " << detid
                                                       << " doesn't seem to belong to Tracker" << std::endl;
         continue;

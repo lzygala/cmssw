@@ -52,7 +52,6 @@ class MatrixReader(object):
                              'relval_2026':'2026-',
                              'relval_identity':'id-',
                              'relval_machine': 'mach-',
-                             'relval_unsch': 'unsch-',
                              'relval_premix': 'premix-'
                              }
 
@@ -68,7 +67,6 @@ class MatrixReader(object):
                       'relval_2026',
                       'relval_identity',
                       'relval_machine',
-                      'relval_unsch',
                       'relval_premix'
                       ]
         self.filesDefault = {'relval_standard':True ,
@@ -83,7 +81,6 @@ class MatrixReader(object):
                              'relval_2026':True,
                              'relval_identity':False,
                              'relval_machine':True,
-                             'relval_unsch':True,
                              'relval_premix':True
                              }
 
@@ -186,6 +183,13 @@ class MatrixReader(object):
             wfName = wfInfo[0]
             stepList = wfInfo[1]
             stepOverrides=wfInfo.overrides
+            # upgrade case: workflow has basic name, key[, suffix (only special workflows)]
+            wfKey = ""
+            wfSuffix = ""
+            if isinstance(wfName, list) and len(wfName)>1:
+                if len(wfName)>2: wfSuffix = wfName[2]
+                wfKey = wfName[1]
+                wfName = wfName[0]
             # if no explicit name given for the workflow, use the name of step1
             if wfName.strip() == '': wfName = stepList[0]
             # option to specialize the wf as the third item in the WF list
@@ -202,6 +206,10 @@ class MatrixReader(object):
                         addTo.append(0)
 
             name=wfName
+            # separate suffixes by + because show() excludes first part of name
+            if len(wfKey)>0:
+                name = name+'+'+wfKey
+                if len(wfSuffix)>0: name = name+wfSuffix
             stepIndex=0
             ranStepList=[]
 
@@ -221,7 +229,7 @@ class MatrixReader(object):
                     else:
                         testName=step+'INPUT'
                     #print "JR",stepI,stepIr,testName,stepList
-                    if testName in self.relvalModule.steps.keys():
+                    if testName in self.relvalModule.steps:
                         #print "JR",stepI,stepIr
                         stepList[stepI]=testName
                         #pop the rest in the list
@@ -238,10 +246,7 @@ class MatrixReader(object):
                     continue
                 if self.wm:
                     #cannot put a certain number of things in wm
-                    if stepName in [
-                        #'HARVEST','HARVESTD','HARVESTDreHLT',
-                        'RECODFROMRAWRECO','SKIMD','SKIMCOSD','SKIMDreHLT'
-                        ]:
+                    if stepName in ['SKIMD','SKIMCOSD','SKIMDreHLT']:
                         continue
                     
                 #replace stepName is needed
@@ -255,8 +260,11 @@ class MatrixReader(object):
                         stepName = step+"INPUT"
                         stepList.remove(step)
                         stepList.insert(stepIndex,stepName)
-                """    
-                name += stepName
+                """
+                stepNameTmp = stepName
+                if len(wfKey)>0: stepNameTmp = stepNameTmp.replace('_'+wfKey,"")
+                if len(wfSuffix)>0: stepNameTmp = stepNameTmp.replace(wfSuffix,"")
+                name += stepNameTmp
                 if addCom and (not addTo or addTo[stepIndex]==1):
                     from Configuration.PyReleaseValidation.relval_steps import merge
                     copyStep=merge(addCom+[self.makeStep(self.relvalModule.steps[stepName],stepOverrides)])
@@ -338,7 +346,6 @@ class MatrixReader(object):
                 
                 wfName,stepNames= name.split('+',1)
                 
-                stepNames=stepNames.replace('+RECODFROMRAWRECO','')
                 stepNames=stepNames.replace('+SKIMCOSD','')
                 stepNames=stepNames.replace('+SKIMD','')
                 if 'HARVEST' in stepNames:
@@ -416,7 +423,7 @@ class MatrixReader(object):
         return workflows
 
     def showWorkFlows(self, selected=None, extended=True, cafVeto=True):
-        if selected: selected = map(float,selected)
+        if selected: selected = list(map(float,selected))
         wfs = self.workFlowsByLocation(cafVeto)
         maxLen = 100 # for summary, limit width of output
         fmt1   = "%-6s %-35s [1]: %s ..."

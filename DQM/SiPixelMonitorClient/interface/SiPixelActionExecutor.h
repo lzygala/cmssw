@@ -8,7 +8,6 @@
 #include "DQM/SiPixelMonitorClient/interface/SiPixelConfigParser.h"
 #include "DQM/SiPixelMonitorClient/interface/SiPixelConfigWriter.h"
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -48,6 +47,9 @@ enum funcType { EachBinContent, Entries, Mean, Sum, WeightedSum };
 
 class SiPixelActionExecutor {
 public:
+  typedef dqm::legacy::DQMStore DQMStore;
+  typedef dqm::legacy::MonitorElement MonitorElement;
+
   SiPixelActionExecutor(bool offlineXMLfile, bool Tier0Flag);
   ~SiPixelActionExecutor();
 
@@ -88,7 +90,6 @@ private:
                    std::vector<std::string> &me_names,
                    bool isbarrel,
                    bool isUpgrade);
-  void fillDeviations(DQMStore::IGetter &iGetter);
   void fillFEDErrorSummary(DQMStore::IBooker &iBooker,
                            DQMStore::IGetter &iGetter,
                            std::string dir_name,

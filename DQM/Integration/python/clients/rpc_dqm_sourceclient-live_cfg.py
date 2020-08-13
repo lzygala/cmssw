@@ -1,16 +1,25 @@
 from __future__ import print_function
 
+import sys
 import FWCore.ParameterSet.Config as cms
 
 ## Use RECO Muons flag
 useMuons = False
 isOfflineDQM = False
 
+unitTest = False
+if 'unitTest=True' in sys.argv:
+    unitTest=True
+
 process = cms.Process("RPCDQM")
 
 ############## Event Source #####################
-# for live online DQM in P5
-process.load("DQM.Integration.config.inputsource_cfi")
+
+if unitTest:
+    process.load("DQM.Integration.config.unittestinputsource_cfi")
+else:
+    # for live online DQM in P5
+    process.load("DQM.Integration.config.inputsource_cfi")
 
 # for testing in lxplus
 #process.load("DQM.Integration.config.fileinputsource_cfi")
@@ -44,7 +53,6 @@ process.load("DQM.Integration.config.environment_cfi")
 process.dqmEnv.subSystemFolder = 'RPC'
 process.dqmSaver.tag = 'RPC'
 
-process.DQMStore.referenceFileName = '/dqmdata/dqm/reference/rpc_reference.root'
 
 ############### Scaler Producer #################
 process.load("EventFilter.ScalersRawToDigi.ScalersRawToDigi_cfi")
@@ -68,6 +76,9 @@ process.omtfStage2Digis = cms.EDProducer("OmtfUnpacker",
 )
 
 process.load("EventFilter.RPCRawToDigi.RPCDigiMerger_cff")
+process.rpcDigiMerger.inputTagTwinMuxDigis = 'rpcTwinMuxRawToDigi'
+process.rpcDigiMerger.inputTagOMTFDigis = 'omtfStage2Digis'
+process.rpcDigiMerger.inputTagCPPFDigis = 'rpcCPPFRawToDigi'
 
 ################# RPC Rec Hits  #################
 process.load("RecoLocalMuon.RPCRecHit.rpcRecHits_cfi")
@@ -121,7 +132,8 @@ process.rpcEventSummaryMerger = process.rpcEventSummary.clone()
 process.rpcEventSummaryMerger.RecHitTypeFolder = cms.untracked.string("AllHitsMerger")
 
 ################# Quality Tests #################
-process.qTesterRPC = cms.EDAnalyzer("QualityTester",
+from DQMServices.Core.DQMQualityTester import DQMQualityTester
+process.qTesterRPC = DQMQualityTester(
     qtList = cms.untracked.FileInPath('DQM/RPCMonitorClient/test/RPCQualityTests.xml'),
     prescaleFactor = cms.untracked.int32(5),
     qtestOnEndLumi = cms.untracked.bool(True),

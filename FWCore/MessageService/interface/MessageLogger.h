@@ -57,6 +57,7 @@ namespace edm {
 
     private:
       void postBeginJob();
+      void preEndJob();
       void postEndJob();
       void jobFailure();
 
@@ -113,6 +114,13 @@ namespace edm {
       void preStreamEndLumi(StreamContext const&);
       void postStreamEndLumi(StreamContext const&);
 
+      void preModuleBeginProcessBlock(GlobalContext const&, ModuleCallingContext const&);
+      void postModuleBeginProcessBlock(GlobalContext const&, ModuleCallingContext const&);
+      void preModuleAccessInputProcessBlock(GlobalContext const&, ModuleCallingContext const&);
+      void postModuleAccessInputProcessBlock(GlobalContext const&, ModuleCallingContext const&);
+      void preModuleEndProcessBlock(GlobalContext const&, ModuleCallingContext const&);
+      void postModuleEndProcessBlock(GlobalContext const&, ModuleCallingContext const&);
+
       void preModuleGlobalBeginRun(GlobalContext const&, ModuleCallingContext const&);
       void postModuleGlobalBeginRun(GlobalContext const&, ModuleCallingContext const&);
       void preModuleGlobalEndRun(GlobalContext const&, ModuleCallingContext const&);
@@ -122,6 +130,13 @@ namespace edm {
       void postModuleGlobalBeginLumi(GlobalContext const&, ModuleCallingContext const&);
       void preModuleGlobalEndLumi(GlobalContext const&, ModuleCallingContext const&);
       void postModuleGlobalEndLumi(GlobalContext const&, ModuleCallingContext const&);
+
+      void preBeginProcessBlock(GlobalContext const&);
+      void postBeginProcessBlock(GlobalContext const&);
+      void preAccessInputProcessBlock(GlobalContext const&);
+      void postAccessInputProcessBlock(GlobalContext const&);
+      void preEndProcessBlock(GlobalContext const&);
+      void postEndProcessBlock(GlobalContext const&);
 
       void preGlobalBeginRun(GlobalContext const&);
       void postGlobalBeginRun(GlobalContext const&);
@@ -147,7 +162,8 @@ namespace edm {
       // stream info is first in the container
       // concurrent lumi info is next
       // concurrent run info is last
-      std::vector<std::string> transitionInfoCache_;
+      // The longest possible string needing to be cached is 51 chars
+      std::vector<std::array<char, 64>> transitionInfoCache_;
       unsigned int lumiInfoBegin_ = 0;
       unsigned int runInfoBegin_ = 0;
 

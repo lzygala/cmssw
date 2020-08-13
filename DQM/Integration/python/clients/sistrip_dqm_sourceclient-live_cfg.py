@@ -1,9 +1,9 @@
 from __future__ import print_function
 import FWCore.ParameterSet.Config as cms
 
-
-from Configuration.Eras.Era_Run2_2018_pp_on_AA_cff import Run2_2018_pp_on_AA
-process = cms.Process("SiStrpDQMLive", Run2_2018_pp_on_AA)
+import sys
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("SiStrpDQMLive", Run3)
 
 process.MessageLogger = cms.Service("MessageLogger",
     debugModules = cms.untracked.vstring('siStripDigis',
@@ -15,6 +15,12 @@ process.MessageLogger = cms.Service("MessageLogger",
 )
 
 live=True
+unitTest=False
+
+if 'unitTest=True' in sys.argv:
+    live=False
+    unitTest=True
+
 # uncomment for running on lxplus
 #live=False
 offlineTesting=not live
@@ -24,7 +30,9 @@ offlineTesting=not live
 # Event Source
 #-----------------------------
 # for live online DQM in P5
-if (live):
+if (unitTest):
+    process.load("DQM.Integration.config.unittestinputsource_cfi")
+elif (live):
     process.load("DQM.Integration.config.inputsource_cfi")
 # for testing in lxplus
 elif(offlineTesting):
@@ -130,7 +138,8 @@ process.TrackMon_ckf.AlgoName = 'CKFTk'
 #--------------------------
 # Quality Test
 #--------------------------
-process.stripQTester = cms.EDAnalyzer("QualityTester",
+from DQMServices.Core.DQMQualityTester import DQMQualityTester
+process.stripQTester = DQMQualityTester(
     qtList = cms.untracked.FileInPath('DQM/SiStripMonitorClient/data/sistrip_qualitytest_config.xml'),
     prescaleFactor = cms.untracked.int32(3),
     getQualityTestsFromFile = cms.untracked.bool(True),
@@ -138,7 +147,7 @@ process.stripQTester = cms.EDAnalyzer("QualityTester",
     qtestOnEndRun = cms.untracked.bool(True)
 )
 
-process.trackingQTester = cms.EDAnalyzer("QualityTester",
+process.trackingQTester = DQMQualityTester(
     qtList = cms.untracked.FileInPath('DQM/TrackingMonitorClient/data/tracking_qualitytest_config.xml'),
     prescaleFactor = cms.untracked.int32(3),
     getQualityTestsFromFile = cms.untracked.bool(True),
@@ -219,7 +228,6 @@ if (process.runType.getRunType() == process.runType.cosmic_run or process.runTyp
     # event selection for cosmic data
     if ((process.runType.getRunType() == process.runType.cosmic_run) and live): process.source.SelectEvents = cms.untracked.vstring('HLT*SingleMu*','HLT_L1*')
     # Reference run for cosmic
-    process.DQMStore.referenceFileName = '/dqmdata/dqm/reference/sistrip_reference_cosmic.root'
     # Source config for cosmic data
     process.SiStripSources_TrkReco_cosmic = cms.Sequence(process.SiStripMonitorTrack_ckf*process.TrackMon_ckf)
     # Client config for cosmic data
@@ -258,6 +266,8 @@ if (process.runType.getRunType() == process.runType.cosmic_run or process.runTyp
     process.trackingQTester.qtestOnEndRun           = cms.untracked.bool(True)
 
     process.p = cms.Path(process.scalersRawToDigi*
+                         process.tcdsDigis*
+                         process.onlineMetaDataDigis*
                          process.APVPhases*
                          process.consecutiveHEs*
                          process.hltTriggerTypeFilter*
@@ -288,7 +298,6 @@ if (process.runType.getRunType() == process.runType.pp_run or process.runType.ge
             'HLT_PAAK*'
             )
 
-    process.DQMStore.referenceFileName = '/dqmdata/dqm/reference/sistrip_reference_pp.root'
     # Source and Client config for pp collisions
 
     process.SiStripMonitorDigi.UseDCSFiltering = cms.bool(False)
@@ -362,6 +371,8 @@ if (process.runType.getRunType() == process.runType.pp_run or process.runType.ge
 
     process.p = cms.Path(
         process.scalersRawToDigi*
+        process.tcdsDigis*
+        process.onlineMetaDataDigis*
         process.APVPhases*
         process.consecutiveHEs*
         process.hltTriggerTypeFilter*
@@ -397,7 +408,6 @@ if (process.runType.getRunType() == process.runType.hpu_run):
 
  #        process.DQMEventStreamerReader.SelectEvents = cms.untracked.PSet(SelectEvents = cms.vstring('HLT_600Tower*','HLT_L1*','HLT_Jet*','HLT_HT*','HLT_MinBias_*','HLT_Physics*', 'HLT_ZeroBias*'))
 #
-    process.DQMStore.referenceFileName = '/dqmdata/dqm/reference/sistrip_reference_pp.root'
 
     process.SiStripMonitorDigi.UseDCSFiltering = cms.bool(False)
     process.SiStripMonitorClusterReal.UseDCSFiltering = cms.bool(False)
@@ -457,6 +467,8 @@ if (process.runType.getRunType() == process.runType.hpu_run):
     process.RecoForDQM_TrkReco       = cms.Sequence(process.offlineBeamSpot*process.MeasurementTrackerEvent*process.siPixelClusterShapeCache*process.recopixelvertexing*process.iterTracking_FirstStep)
 
     process.p = cms.Path(process.scalersRawToDigi*
+                         process.tcdsDigis*
+                         process.onlineMetaDataDigis*
                          process.APVPhases*
                          process.consecutiveHEs*
                          process.hltTriggerTypeFilter*
@@ -517,7 +529,6 @@ if (process.runType.getRunType() == process.runType.hi_run):
             'HLT_HIPhysics*'
             )
 
-    process.DQMStore.referenceFileName = '/dqmdata/dqm/reference/sistrip_reference_pp.root'
 
 
     process.SiStripMonitorDigi.UseDCSFiltering = cms.bool(False)
@@ -612,6 +623,8 @@ if (process.runType.getRunType() == process.runType.hi_run):
 
     process.p = cms.Path(
         process.scalersRawToDigi*
+        process.tcdsDigis*
+        process.onlineMetaDataDigis*
         process.APVPhases*
         process.consecutiveHEs*
         process.hltTriggerTypeFilter*

@@ -23,12 +23,12 @@
 
 namespace edm {
 
-  EventSetupImpl::EventSetupImpl(ActivityRegistry const* activityRegistry) : activityRegistry_(activityRegistry) {}
+  EventSetupImpl::EventSetupImpl() {}
 
   EventSetupImpl::~EventSetupImpl() {}
 
-  void EventSetupImpl::insert(const eventsetup::EventSetupRecordKey& iKey,
-                              const eventsetup::EventSetupRecordImpl* iRecord) {
+  void EventSetupImpl::insertRecordImpl(const eventsetup::EventSetupRecordKey& iKey,
+                                        const eventsetup::EventSetupRecordImpl* iRecord) {
     auto lb = std::lower_bound(keysBegin_, keysEnd_, iKey);
     if (lb == keysEnd_ || iKey != *lb) {
       throw cms::Exception("LogicError") << "EventSetupImpl::insert Could not find key\n"
@@ -38,13 +38,9 @@ namespace edm {
     recordImpls_[index] = iRecord;
   }
 
-  void EventSetupImpl::clear() {
-    for (auto& ptr : recordImpls_) {
-      ptr = nullptr;
-    }
+  void EventSetupImpl::addRecordImpl(const eventsetup::EventSetupRecordImpl& iRecord) {
+    insertRecordImpl(iRecord.key(), &iRecord);
   }
-
-  void EventSetupImpl::add(const eventsetup::EventSetupRecordImpl& iRecord) { insert(iRecord.key(), &iRecord); }
 
   std::optional<eventsetup::EventSetupRecordGeneric> EventSetupImpl::find(const eventsetup::EventSetupRecordKey& iKey,
                                                                           unsigned int iTransitionID,
@@ -57,7 +53,7 @@ namespace edm {
     if (recordImpls_[index] == nullptr) {
       return std::nullopt;
     }
-    return eventsetup::EventSetupRecordGeneric(recordImpls_[index], iTransitionID, getTokenIndices);
+    return eventsetup::EventSetupRecordGeneric(recordImpls_[index], iTransitionID, getTokenIndices, this);
   }
 
   eventsetup::EventSetupRecordImpl const* EventSetupImpl::findImpl(const eventsetup::EventSetupRecordKey& iKey) const {
@@ -67,6 +63,13 @@ namespace edm {
     }
     auto index = std::distance(keysBegin_, lb);
     return recordImpls_[index];
+  }
+
+  eventsetup::EventSetupRecordImpl const* EventSetupImpl::findImpl(ESRecordIndex iKey) const {
+    if UNLIKELY (iKey.value() == std::numeric_limits<int>::max()) {
+      return nullptr;
+    }
+    return recordImpls_[iKey.value()];
   }
 
   void EventSetupImpl::fillAvailableRecordKeys(std::vector<eventsetup::EventSetupRecordKey>& oToFill) const {
@@ -83,6 +86,15 @@ namespace edm {
   bool EventSetupImpl::recordIsProvidedByAModule(eventsetup::EventSetupRecordKey const& iKey) const {
     auto lb = std::lower_bound(keysBegin_, keysEnd_, iKey);
     return lb != keysEnd_ && iKey == *lb;
+  }
+
+  bool EventSetupImpl::validRecord(eventsetup::EventSetupRecordKey const& iKey) const {
+    auto lb = std::lower_bound(keysBegin_, keysEnd_, iKey);
+    if (lb != keysEnd_ && iKey == *lb) {
+      auto index = std::distance(keysBegin_, lb);
+      return recordImpls_[index] != nullptr;
+    }
+    return false;
   }
 
   void EventSetupImpl::setKeyIters(std::vector<eventsetup::EventSetupRecordKey>::const_iterator const& keysBegin,

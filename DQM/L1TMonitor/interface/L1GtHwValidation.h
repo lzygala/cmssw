@@ -32,7 +32,6 @@
 #include "FWCore/Utilities/interface/InputTag.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 
 #include "DataFormats/L1GlobalTrigger/interface/L1GtObject.h"
 #include "CondFormats/L1TObjects/interface/L1GtDefinitions.h"
@@ -106,7 +105,6 @@ private:
 
 protected:
   void bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, const edm::EventSetup&) override;
-  void dqmBeginRun(const edm::Run&, const edm::EventSetup&) override;
   //virtual void analyze(DQMStore::IBooker &ibooker, const edm::Event&, const edm::EventSetup&);
 
 private:

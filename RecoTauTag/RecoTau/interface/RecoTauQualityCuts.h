@@ -20,6 +20,7 @@
  */
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/Candidate/interface/CandidateFwd.h"
 #include "DataFormats/TrackReco/interface/Track.h"
@@ -43,15 +44,15 @@ namespace reco {
       explicit RecoTauQualityCuts(const edm::ParameterSet& qcuts);
 
       /// Update the primary vertex
-      void setPV(const reco::VertexRef& vtx) const { pv_ = vtx; }
+      void setPV(const reco::VertexRef& vtx) { pv_ = vtx; }
 
       /// Update the leading track
-      void setLeadTrack(const reco::Track& leadTrack) const;
-      void setLeadTrack(const reco::Candidate& leadCand) const;
+      void setLeadTrack(const reco::Track& leadTrack);
+      void setLeadTrack(const reco::Candidate& leadCand);
 
       /// Update the leading track (using reference)
       /// If null, this will set the lead track ref null.
-      void setLeadTrack(const reco::CandidateRef& leadCand) const;
+      void setLeadTrack(const reco::CandidateRef& leadCand);
 
       /// Filter a single Track
       bool filterTrack(const reco::TrackBaseRef& track) const;
@@ -91,6 +92,9 @@ namespace reco {
         return output;
       }
 
+      /// Declare all parameters read from python config file
+      static void fillDescriptions(edm::ParameterSetDescription& descriptions);
+
     private:
       bool filterTrack_(const reco::Track* track) const;
       bool filterGammaCand(const reco::Candidate& cand) const;
@@ -98,9 +102,9 @@ namespace reco {
       bool filterCandByType(const reco::Candidate& cand) const;
 
       // The current primary vertex
-      mutable reco::VertexRef pv_;
+      reco::VertexRef pv_;
       // The current lead track references
-      mutable const reco::Track* leadTrack_;
+      const reco::Track* leadTrack_;
 
       double minTrackPt_;
       double maxTrackChi2_;

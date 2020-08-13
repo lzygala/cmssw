@@ -1,7 +1,7 @@
 #ifndef HcalSimHitsValidation_H
 #define HcalSimHitsValidation_H
 
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMOneEDAnalyzer.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -31,7 +31,6 @@
 #include "SimDataFormats/CaloHit/interface/PCaloHitContainer.h"
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include <algorithm>
 #include <cmath>
 #include <ostream>
@@ -39,7 +38,7 @@
 #include <utility>
 #include <vector>
 
-class HcalSimHitsValidation : public DQMEDAnalyzer {
+class HcalSimHitsValidation : public DQMOneEDAnalyzer<> {
 public:
   HcalSimHitsValidation(edm::ParameterSet const &conf);
   ~HcalSimHitsValidation() override;

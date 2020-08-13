@@ -3,9 +3,9 @@
 #include "Geometry/TrackerGeometryBuilder/interface/PlaneBuilderForGluedDet.h"
 #include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "Geometry/CommonDetUnit/interface/GluedGeomDet.h"
-#include "Geometry/TrackerGeometryBuilder/interface/StackGeomDet.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetType.h"
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/StackGeomDet.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetType.h"
+#include "Geometry/CommonDetUnit/interface/PixelGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetType.h"
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
 #include "Geometry/TrackerGeometryBuilder/interface/PixelTopologyBuilder.h"
@@ -160,7 +160,7 @@ void TrackerGeomBuilderFromGeometricDet::buildPixel(
   tracker->setOffsetDU(GeomDetEnumerators::subDetGeom[det]);
 
   for (auto i : gdv) {
-    std::string const& detName = i->name().fullname();
+    std::string const& detName = i->name();
     if (thePixelDetTypeMap.find(detName) == thePixelDetTypeMap.end()) {
       std::unique_ptr<const Bounds> bounds(i->bounds());
 
@@ -198,7 +198,7 @@ void TrackerGeomBuilderFromGeometricDet::buildSilicon(std::vector<const Geometri
   tracker->setOffsetDU(GeomDetEnumerators::subDetGeom[det]);
 
   for (auto i : gdv) {
-    std::string const& detName = i->name().fullname();
+    std::string const& detName = i->name();
     if (theStripDetTypeMap.find(detName) == theStripDetTypeMap.end()) {
       std::unique_ptr<const Bounds> bounds(i->bounds());
       StripTopology* t = StripTopologyBuilder().build(&*bounds, i->siliconAPVNum(), part);

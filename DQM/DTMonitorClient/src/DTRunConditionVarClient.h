@@ -28,7 +28,6 @@
 #include "CondFormats/DTObjects/interface/DTMtime.h"
 
 #include "DQMServices/Core/interface/DQMStore.h"
-#include "DQMServices/Core/interface/MonitorElement.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 
 #include <DQMServices/Core/interface/DQMEDHarvester.h>
@@ -66,7 +65,8 @@ protected:
                        int nbins,
                        float min,
                        float max,
-                       bool isVDCorr = false);
+                       bool isVDCorr = false,
+                       bool makeRings = false);
 
   /// DQM Client Diagnostic
   void dqmEndLuminosityBlock(DQMStore::IBooker&,
@@ -106,6 +106,7 @@ private:
   MonitorElement* glbT0Summary;
 
   std::map<int, std::map<std::string, MonitorElement*> > wheelHistos;
+  std::map<int, std::map<int, std::map<std::string, MonitorElement*> > > wheelRingHistos;
   std::map<std::string, MonitorElement*> summaryHistos;
   std::map<std::string, MonitorElement*> allwheelHistos;
 };

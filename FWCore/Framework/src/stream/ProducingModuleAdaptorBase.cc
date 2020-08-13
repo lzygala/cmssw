@@ -102,6 +102,20 @@ namespace edm {
     }
 
     template <typename T>
+    std::vector<ESProxyIndex> const& ProducingModuleAdaptorBase<T>::esGetTokenIndicesVector(
+        edm::Transition iTrans) const {
+      assert(not m_streamModules.empty());
+      return m_streamModules[0]->esGetTokenIndicesVector(iTrans);
+    }
+
+    template <typename T>
+    std::vector<ESRecordIndex> const& ProducingModuleAdaptorBase<T>::esGetTokenRecordIndicesVector(
+        edm::Transition iTrans) const {
+      assert(not m_streamModules.empty());
+      return m_streamModules[0]->esGetTokenRecordIndicesVector(iTrans);
+    }
+
+    template <typename T>
     void ProducingModuleAdaptorBase<T>::modulesWhoseProductsAreConsumed(
         std::vector<ModuleDescription const*>& modules,
         ProductRegistry const& preg,
@@ -155,9 +169,6 @@ namespace edm {
     }
 
     template <typename T>
-    void ProducingModuleAdaptorBase<T>::doBeginJob() {}
-
-    template <typename T>
     void ProducingModuleAdaptorBase<T>::doBeginStream(StreamID id) {
       m_streamModules[id]->beginStream(id);
     }
@@ -177,7 +188,7 @@ namespace edm {
       Run r(rp, moduleDescription_, mcc, false);
       r.setConsumer(mod);
       const EventSetup c{
-          ci, static_cast<unsigned int>(Transition::BeginRun), mod->esGetTokenIndices(Transition::BeginRun)};
+          ci, static_cast<unsigned int>(Transition::BeginRun), mod->esGetTokenIndices(Transition::BeginRun), false};
       mod->beginRun(r, c);
     }
     template <typename T>
@@ -188,7 +199,8 @@ namespace edm {
       auto mod = m_streamModules[id];
       Run r(rp, moduleDescription_, mcc, true);
       r.setConsumer(mod);
-      const EventSetup c{ci, static_cast<unsigned int>(Transition::EndRun), mod->esGetTokenIndices(Transition::EndRun)};
+      const EventSetup c{
+          ci, static_cast<unsigned int>(Transition::EndRun), mod->esGetTokenIndices(Transition::EndRun), false};
       mod->endRun(r, c);
       streamEndRunSummary(mod, r, c);
     }
@@ -205,7 +217,8 @@ namespace edm {
       lb.setConsumer(mod);
       const EventSetup c{ci,
                          static_cast<unsigned int>(Transition::BeginLuminosityBlock),
-                         mod->esGetTokenIndices(Transition::BeginLuminosityBlock)};
+                         mod->esGetTokenIndices(Transition::BeginLuminosityBlock),
+                         false};
       mod->beginLuminosityBlock(lb, c);
     }
 
@@ -219,7 +232,8 @@ namespace edm {
       lb.setConsumer(mod);
       const EventSetup c{ci,
                          static_cast<unsigned int>(Transition::EndLuminosityBlock),
-                         mod->esGetTokenIndices(Transition::EndLuminosityBlock)};
+                         mod->esGetTokenIndices(Transition::EndLuminosityBlock),
+                         false};
       mod->endLuminosityBlock(lb, c);
       streamEndLuminosityBlockSummary(mod, lb, c);
     }
